@@ -1,0 +1,43 @@
+import { Global, ScreenId, Backend } from "../../common.slint";
+import { ScreenBase } from "../../components/screen.slint";
+import { SettingType, SettingValue, SettingEntry } from "types.slint";
+import { SettingsListView } from "components.slint";
+
+export component SettingsScreen inherits ScreenBase {
+    title: "Settings";
+    forward-focus: list;
+
+    in property <[SettingEntry]> entries: Backend.settings;
+
+    i-focus-scope := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "b") {
+                // TODO: if in a nested subpage, just exit it.
+                Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else {
+                reject
+            }
+        }
+
+        VerticalLayout {
+            height: 100%;
+            spacing: 2px;
+
+            list := SettingsListView {
+                model: entries;
+            }
+
+            HorizontalLayout {
+                Text {
+                    text: "A: Select";
+                }
+
+                Text {
+                    text: "B: Back";
+                    horizontal-alignment: right;
+                }
+            }
+        }
+    }
+}

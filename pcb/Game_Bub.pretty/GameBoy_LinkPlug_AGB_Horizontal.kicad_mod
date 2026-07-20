@@ -1,0 +1,254 @@
+(footprint "GameBoy_LinkPlug_AGB_Horizontal"
+	(version 20240108)
+	(generator "pcbnew")
+	(generator_version "8.0")
+	(layer "F.Cu")
+	(descr "Game Boy link port, MGB (Game Boy Pocket) and later models")
+	(tags "game boy link port")
+	(property "Reference" "REF**"
+		(at 0.85 -6.826 0)
+		(layer "F.SilkS")
+		(uuid "2949af22-2432-469e-9f07-eee60be8acbd")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "GameBoy_LinkPlug_AGB_Horizontal"
+		(at 0.85 6.8 0)
+		(layer "F.Fab")
+		(uuid "3997254a-8057-4464-ba07-e37f0720cbd8")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Footprint" ""
+		(at -1.65 -2 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "57c59202-f4f1-4db8-905a-2b098efa9624")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at -1.65 -2 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "6d041d94-194a-4fe5-93ff-3603b42d4161")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at -1.65 -2 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "4209eea0-2c8a-4e56-b89f-6d169a3501bf")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_line
+		(start -3.3175 -5.1)
+		(end -3.3175 5.1)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "b4afdd30-7a78-4cd8-8670-bb6dd787dcdc")
+	)
+	(fp_line
+		(start -3.3175 5.1)
+		(end -1.0825 5.112)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "f46fb303-7470-41c0-b6e8-4553c1d6503f")
+	)
+	(fp_line
+		(start -1.2095 -5.1)
+		(end -3.3175 -5.1)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "8eacb9d3-c41d-4b39-abd1-0bc8f2e97411")
+	)
+	(fp_line
+		(start 1.779 5.1)
+		(end 2.75 5.1)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "03d57b22-a0ad-4d3d-9d1c-5573371e6c2f")
+	)
+	(fp_line
+		(start 2.75 -5.1)
+		(end 1.779 -5.1)
+		(stroke
+			(width 0.12)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "832b1e20-f118-4505-ad00-93c040f2f83d")
+	)
+	(fp_line
+		(start -8.7 -6.164)
+		(end -8.7 6.228)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "d3db736b-0e33-4126-b950-5488923df40e")
+	)
+	(fp_line
+		(start 6.35 -6.164)
+		(end -8.7 -6.164)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "159c8092-f459-40eb-b409-c2cace814e6e")
+	)
+	(fp_line
+		(start 6.35 -6.164)
+		(end 6.35 6.228)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "86f6faec-7eee-404c-a73a-2ae625f33d8c")
+	)
+	(fp_line
+		(start 6.35 6.228)
+		(end -8.7 6.228)
+		(stroke
+			(width 0.05)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "90337a8b-a8c5-48e1-ad0f-b0e67716fe3c")
+	)
+	(fp_rect
+		(start -2.8 -4.7)
+		(end 10.5 4.7)
+		(stroke
+			(width 0.1)
+			(type default)
+		)
+		(fill none)
+		(layer "F.Fab")
+		(uuid "c1c43e67-f607-4d8e-93de-b37640c6b1e6")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 4.827 0 90)
+		(layer "F.Fab")
+		(uuid "eb83440d-aa8b-4a1e-9e93-00cf0de78de9")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(pad "1" thru_hole rect
+		(at -7.4 2)
+		(size 1.4 1.4)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "cfec88d2-05ea-4320-9be6-2559d89ee700")
+	)
+	(pad "2" thru_hole circle
+		(at -4.8 2)
+		(size 1.4 1.4)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "644ebc55-9b92-49bd-8dfa-8a3a0dd8d76d")
+	)
+	(pad "3" thru_hole circle
+		(at -7.4 0)
+		(size 1.4 1.4)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "fe1c93f4-4468-424b-a088-27aef08b62b4")
+	)
+	(pad "4" thru_hole circle
+		(at -4.8 0)
+		(size 1.4 1.4)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "f7475c2a-e91e-435c-bec2-3307ef3e1f94")
+	)
+	(pad "5" thru_hole circle
+		(at -7.4 -2)
+		(size 1.4 1.4)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "0f3121ae-1081-4d81-b548-dceafa613e21")
+	)
+	(pad "6" thru_hole circle
+		(at -4.8 -2)
+		(size 1.4 1.4)
+		(drill 1)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "66cc4ddc-a52d-4ad7-986e-68f000539802")
+	)
+	(pad "SH" thru_hole oval
+		(at 0 -4.7 90)
+		(size 1.15 1.8)
+		(drill oval 0.75 1.4)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "85ec87eb-bb51-43f3-adf5-d04ca264762d")
+	)
+	(pad "SH" thru_hole oval
+		(at 0 4.7 90)
+		(size 1.15 1.8)
+		(drill oval 0.75 1.4)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "b3e694ed-a2f1-4c68-9eaf-03dbdbcb21ca")
+	)
+	(model "${KICAD6_3DMODEL_DIR}/Gekkio_Connector.3dshapes/GameBoy_LinkPort_MGB_Horizontal.wrl"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+)

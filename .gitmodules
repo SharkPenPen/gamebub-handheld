@@ -1,0 +1,13 @@
+[submodule "hdmi"]
+	path = fpga/verilog/hdmi
+	url = https://github.com/elipsitz/systemverilog-hdmi
+
+[submodule "fusesoc_generators"]
+	path = fpga/fusesoc_libraries/fusesoc_generators
+	url = https://github.com/elipsitz/fusesoc-generators
+[submodule "fusesoc_libraries/fusesoc_generators"]
+	path = fusesoc_libraries/fusesoc_generators
+	url = https://github.com/elipsitz/fusesoc-generators
+[submodule "fpga/fusesoc_libraries/fusesoc_generators"]
+	path = fpga/fusesoc_libraries/fusesoc_generators
+	url = https://github.com/elipsitz/fusesoc-generators

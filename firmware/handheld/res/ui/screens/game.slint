@@ -1,0 +1,81 @@
+import { Global, ScreenId, Backend } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
+import { Button } from "../components/button.slint";
+
+export component GameScreen inherits ScreenBase {
+    private property <bool> paused: false;
+    forward-focus: i-focus-scope;
+
+    protected function set-paused(paused: bool) {
+        Global.ui-status-bar = paused;
+        Backend.game-set-paused(paused);
+        self.paused = paused;
+        if (paused) {
+            btn-resume.focus();
+        } else {
+            i-focus-scope.focus();
+        }
+    }
+
+    i-focus-scope := FocusScope {
+        key-released(event) => {
+            if (event.text == "Home" || event.text == "h") && !Global.home-consumed {
+                set-paused(!root.paused);
+            }
+            if (event.text == "Power") {
+                set-paused(true);
+            }
+            reject
+        }
+
+        menu := Rectangle {
+            visible: paused;
+            background: #FFF;
+            border-color: black;
+            border-width: 1px;
+            width: i-layout.min-width + 20px;
+            height: i-layout.min-height;
+            i-layout := VerticalLayout {
+                padding: 8px;
+                spacing: 4px;
+                btn-resume := Button {
+                    text: "Resume";
+                    on-down => {
+                        btn-reset.focus();
+                        accept
+                    }
+                    on-pressed => {
+                        root.set-paused(false);
+                    }
+                }
+
+                btn-reset := Button {
+                    text: "Reset";
+                    on-up => {
+                        btn-resume.focus();
+                        accept
+                    }
+                    on-down => {
+                        btn-main-menu.focus();
+                        accept
+                    }
+                    on-pressed => {
+                        Backend.game-reset();
+                        root.set-paused(false);
+                    }
+                }
+
+                btn-main-menu := Button {
+                    text: "Main Menu";
+                    on-up => {
+                        btn-reset.focus();
+                        accept
+                    }
+                    on-pressed => {
+                        Global.set-screen(ScreenId.MainMenu);
+                    }
+                }
+            }
+        }
+    }
+}

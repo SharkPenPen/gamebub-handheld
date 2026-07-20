@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Game_Bub")(type "KiCad")(uri "${KIPRJMOD}/../Game_Bub.pretty")(options "")(descr ""))
+)

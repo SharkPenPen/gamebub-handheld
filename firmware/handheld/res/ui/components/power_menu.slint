@@ -1,0 +1,69 @@
+
+import { Button } from "../components/button.slint";
+import { Global, Backend } from "../common.slint";
+
+export component PowerMenu inherits PopupWindow {
+    close-policy: no-auto-close;
+
+    init => {
+        // forward-focus doesn't work with PopupWindow
+        btn-close.focus();
+    }
+
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: black;
+        opacity: 25%;
+    }
+
+    Rectangle {
+        background: #FFF;
+        border-color: black;
+        border-width: 1px;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        width: i-layout.min-width + 20px;
+        height: i-layout.min-height;
+        i-layout := VerticalLayout {
+            padding: 8px;
+            spacing: 4px;
+            btn-power-off := Button {
+                text: "Power Off";
+                on-down => {
+                    btn-reboot.focus();
+                    accept
+                }
+                on-pressed => {
+                    Backend.power-off();
+                }
+            }
+
+            btn-reboot := Button {
+                text: "Reboot";
+                on-up => {
+                    btn-power-off.focus();
+                    accept
+                }
+                on-down => {
+                    btn-close.focus();
+                    accept
+                }
+                on-pressed => {
+                    Backend.reboot();
+                }
+            }
+
+            btn-close := Button {
+                text: "Close";
+                on-up => {
+                    btn-reboot.focus();
+                    accept
+                }
+                on-pressed => {
+                    root.close();
+                }
+            }
+        }
+    }
+}
