@@ -9,11 +9,38 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # 1. 把仓库代码下载到云端服务器
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build ESP32 Firmware
-        uses: esp-rs/esp-idf-ci-action@v1
+      # 2. 手动安装 Rust 工具链（完全不依赖 esp-rs 官方插件）
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
         with:
+          toolchain: nightly
           target: esp32s3
-          command: cargo build --release --manifest-path firmware/handheld/Cargo.toml
+          override: true
+
+      # 3. 安装 ESP 专属工具 espup
+      - name: Install ESP tools
+        run: cargo install espup
+
+      # 4. 下载并配置 ESP-IDF 环境
+      - name: Install ESP-IDF & dependencies
+        run: espup install -s ~/export-esp.sh
+
+      # 5. 激活环境并编译（注意这里用了一个多行命令）
+      - name: Build firmware
+        working-directory: ./firmware/handheld
+        run: |
+          source ~/export-esp.sh
+          cargo build --release
+
+      # 6. 将编译好的固件打包供下载
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-bin
+          path: |
+            firmware/handheld/target/esp32s3/release/handheld
+            firmware/handheld/target/esp32s3/release/handheld.bin
