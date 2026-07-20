@@ -13,8 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build ESP32 Firmware
-        uses: esp-rs/rust-build@v1
+        uses: esp-rs/esp-idf-ci-action@v1
         with:
-          directory: ./firmware/handheld
           target: esp32s3
-          build-args: --release
+          command: cargo build --release --manifest-path firmware/handheld/Cargo.toml
