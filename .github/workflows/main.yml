@@ -12,26 +12,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: Build ESP32 Firmware
+        uses: esp-rs/rust-build@v1
         with:
-          toolchain: nightly
+          directory: ./firmware/handheld
           target: esp32s3
-          override: true
-
-      - name: Install ESP Rust dependencies
-        run: |
-          cargo install espup
-          espup install
-
-      - name: Build firmware
-        working-directory: ./firmware/handheld
-        run: cargo build --release
-
-      - name: Upload firmware artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: firmware-bin
-          path: |
-            firmware/handheld/target/esp32s3/release/handheld
-            firmware/handheld/target/esp32s3/release/handheld.bin
+          build-args: --release
