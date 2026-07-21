@@ -1,4 +1,5 @@
 name: Build ESP32-S3 Firmware
+
 on:
   push:
     branches: [ "main" ]
@@ -7,59 +8,80 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        # 所有命令在此目录执行（根据你的项目结构修改）
+        working-directory: ./firmware/handheld
     env:
-      ESP_EXPORT: ~/export-esp.sh
-      # 全局显式声明目标，全步骤统一，彻底规避配置漏读
-      ESP_TARGET: xtensa-esp32s3-none-elf
+      # espup 导出脚本路径
+      EXPORT_SCRIPT: ~/export-esp.sh
+
     steps:
-      # 1. 拉取源码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. 预装系统依赖（ESP-IDF/espup 必备底层组件）
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install -y git cmake ninja-build libusb-1.0-0 python3 python3-pip
+          sudo apt install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            python3 python3-pip python3-venv \
+            libusb-1.0-0 libusb-1.0-0-dev \
+            libudev-dev \
+            libssl-dev \
+            pkg-config \
+            curl \
+            git
 
-      # 3. 安装宿主端基础 Rust（仅做运行时基础，不指定ESP目标）
-      - name: Setup stable Rust toolchain
+      # 使用 Rust 官方的稳定工具链作为基础（epup 会额外安装 Xtensa 工具链）
+      - name: Setup stable Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # 4. 缓存ESP工具链（大幅提速，避免重复下载超时失败）
-      - name: Cache ESP espup toolchain
+      # 缓存 Rust 工具链、Cargo 索引、espup 资源
+      - name: Cache Rust & ESP toolchains
         uses: actions/cache@v4
         with:
           path: |
+            ~/.rustup
+            ~/.cargo/registry
+            ~/.cargo/git
             ~/.espressif
-            ~/.cargo/bin
             ~/export-esp.sh
-          key: esp-espup-${{ runner.os }}
+          key: esp-toolchain-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            esp-toolchain-${{ runner.os }}-
 
-      # 5. 安装espup + Xtensa专属Rust工具链（唯一支持ESP32-S3目标的步骤）
       - name: Install espup & ESP-IDF toolchain
         run: |
           cargo install espup
-          # 显式指定目标安装，提前拉取ESP32-S3对应的工具链，降低编译期风险
-          espup install --targets esp32s3 -s ${{ env.ESP_EXPORT }}
+          espup install --targets esp32s3 -s ${{ env.EXPORT_SCRIPT }}
 
-      # 6. 预校验：确认目标工具链可用（编译前排错，避免中途失败）
-      - name: Verify ESP32-S3 target available
+      # 将所有后续步骤需要的环境变量写入 $GITHUB_ENV，避免反复 source
+      - name: Persist ESP environment
         run: |
-          source ${{ env.ESP_EXPORT }}
-          rustup target list --installed | grep ${{ env.ESP_TARGET }}
-          cargo --version
+          source ${{ env.EXPORT_SCRIPT }}
+          echo "IDF_PATH=$IDF_PATH" >> $GITHUB_ENV
+          echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> $GITHUB_ENV
+          # 添加 Xtensa Rust 工具链到 PATH
+          echo "$HOME/.rustup/toolchains/esp/bin" >> $GITHUB_PATH
 
-      # 7. 显式指定目标编译固件（双重兜底，不依赖项目内config.toml）
-      - name: Build release firmware
-        working-directory: ./firmware/handheld
+      # 编译项目（不手动指定 target，由 .cargo/config.toml 决定）
+      - name: Build firmware
+        run: cargo build --release
+
+      # 生成可烧录的 bin 文件（合并 bootloader、分区表、应用）
+      - name: Generate flashable binary
         run: |
-          source ${{ env.ESP_EXPORT }}
-          cargo build --release --target ${{ env.ESP_TARGET }}
+          cargo espflash save-image --release --chip esp32s3 ./firmware.bin
 
-      # 8. 上传编译好的固件
-      - name: Upload firmware artifact
+      # 上传固件（ELF 和 BIN 都保留）
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: handheld-firmware-bin
-          path: firmware/handheld/target/${{ env.ESP_TARGET }}/release/handheld.bin
+          name: handheld-firmware
+          path: |
+            firmware/handheld/target/release/*.elf
+            firmware/handheld/firmware.bin
+          if-no-files-found: error
