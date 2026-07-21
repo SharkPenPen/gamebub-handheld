@@ -40,7 +40,10 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Proceed to initialize device.
+    log::info!("Calling Device::init()...");
     Device::init()?;
+    log::info!("Device::init() returned successfully");
+
     let mut device = Device::lock();
     let is_sdcard_mounted = device.sdcard.is_some();
     device.set_brightness(kvs::keys::BRIGHTNESS.get().unwrap());
