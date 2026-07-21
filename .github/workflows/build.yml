@@ -1,0 +1,45 @@
+name: Build ESP32-S3 Firmware
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:          # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup ESP32 toolchain
+        uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32s3
+          ldproxy: true
+
+      # 编译固件（请根据你的实际 feature 调整）
+      - name: Build release firmware
+        run: cargo build --release --features rev2   # ← 根据你的启动日志是 rev2
+
+      # 安装 espflash 以生成可直接烧录的 bin 文件
+      - name: Install espflash
+        run: cargo install espflash
+
+      # 合并 bootloader + 分区表 + 应用程序，输出 firmware.bin
+      - name: Generate flashable binary
+        run: cargo espflash save-image --release --chip esp32s3 --features rev2 ./firmware.bin
+
+      # 上传固件（保留 ELF 和 BIN 两种格式）
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: handheld-firmware
+          path: |
+            ./target/release/*.elf
+            ./firmware.bin
+          if-no-files-found: error
