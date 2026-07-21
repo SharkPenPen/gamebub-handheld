@@ -113,15 +113,25 @@ where
     ///     <= AVDD/2.
     ///     We'll go with 1.5V
     pub fn init(&mut self) -> Result<(), Error> {
+        log::info!("DAC init: starting");
+
         // 1. Set up device.
         self.reset()?;
+        log::info!("DAC init: reset released");
 
-        // Do software reset?
-        // self.write_reg(0,  0x01, 0x01);
+        // Quick communication test: read page 0 register 0x00
+        match self.read_reg(0, 0x00) {
+            Ok(val) => log::info!("DAC init: communication OK, read 0x{:02X} from page reg", val),
+            Err(e) => {
+                log::error!("DAC init: communication test FAILED - {:?}", e);
+                return Err(e);
+            }
+        }
 
         // 2. Program clock settings
         // PLL_clkin = MCLK, codec_clkin=MCLK
         self.write_reg(0, 0x04, 0x00)?;
+        log::info!("DAC init: clock settings programmed");
 
         // PLL is unused
         // self.write_reg(0, 0x06, 0x08);
@@ -131,18 +141,22 @@ where
 
         // Program and power up NDAC ( = 1);
         self.write_reg(0, 0x0B, 0x81)?;
+        log::info!("DAC init: NDAC powered up");
 
         // Program and power up MDAC ( = 2);
         self.write_reg(0, 0x0C, 0x82)?;
+        log::info!("DAC init: MDAC powered up");
 
         // Program OSR
         //
         // DOSR = 128, DOSR(9:8) = 0, DOSR(7:0) = 128
         self.write_reg(0, 0x0D, 0x00)?;
         self.write_reg(0, 0x0E, 0x80)?;
+        log::info!("DAC init: OSR set (DOSR=128)");
 
         // Program codec interface (I2S, 16-bit, BCLK/WCLK inputs);
         self.write_reg(0, 0x1B, 0x00)?;
+        log::info!("DAC init: codec interface set");
 
         // Program processing block. Select PRB_P7
         self.write_reg(0, 0x3C, 0x07)?;
@@ -150,21 +164,26 @@ where
         self.write_reg(0, 0x00, 0x08)?;
         self.write_reg(0, 0x01, 0x04)?;
         self.write_reg(0, 0x00, 0x00)?;
+        log::info!("DAC init: processing block PRB_P7 selected");
 
         // DAC volume control through register, not pin
         self.write_reg(0, 0x74, 0x00)?;
+        log::info!("DAC init: volume control via register");
 
         // 3. Program analog blocks
 
         // Program common-mode voltage (set to 1.5 V);
         self.write_reg(1, 0x1F, 0x0C)?;
+        log::info!("DAC init: common-mode voltage set");
 
         // Program headphone depop settings (power on = 800ms, step = 4ms);
         self.write_reg(1, 0x21, 0x4E)?;
+        log::info!("DAC init: headphone depop settings programmed");
 
         // Route DAC output to output amplifier mixer
         // LDAC to HPL, RDAC to HPR
         self.write_reg(1, 0x23, 0x44)?;
+        log::info!("DAC init: output routing set");
 
         // Unmute and set gain of output driver
         // Unmute HPL, set gain = 0 db
@@ -175,6 +194,7 @@ where
         self.write_reg(1, 0x2A, 0x04)?;
         // Unmute right speaker, set gain = 6 dB
         self.write_reg(1, 0x2B, 0x04)?;
+        log::info!("DAC init: output drivers unmuted and gains set");
 
         // Configure output drivers
         // Enable HPL output analog volume, set = 0 dB
@@ -185,6 +205,7 @@ where
         self.write_reg(1, 0x26, 0x80)?;
         // Enable speaker right output analog volume, set = 0 dB
         self.write_reg(1, 0x27, 0x80)?;
+        log::info!("DAC init: analog volumes enabled");
 
         // TODO: Apply waiting time determined by the de-pop settings and the soft-stepping settings
         //    of the driver gain or poll page 1 / register 63
@@ -194,10 +215,13 @@ where
 
         // Powerup DAC left and right channels (soft step enabled);
         self.write_reg(0, 0x3F, 0xD4)?;
+        log::info!("DAC init: DAC channels powered up");
 
         // Enable headphone detection
         self.configure_headphone_detection(true)?;
+        log::info!("DAC init: headphone detection configured");
 
+        log::info!("DAC init: completed successfully");
         Ok(())
     }
 
