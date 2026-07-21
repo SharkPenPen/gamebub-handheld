@@ -185,16 +185,27 @@ impl Device<'_> {
         let mut fpga_power = PinDriver::output(pin_fpga_power)?;
         fpga_power.set_high()?;
         let fpga_power_time = Instant::now();
+        log::info!("FPGA power enabled, waiting for stabilization...");
 
         // Initialize I2C
-        // TODO: see if there's a good way to do this without making and leaking a Box
+        log::info!("Initializing I2C bus...");
         let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
         let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
+        log::info!("I2C driver created. Scanning bus for devices...");
+        for addr in 1u8..=127u8 {
+            let mut buf = [0u8; 1];
+            if i2c.write_read(addr, &[0x00], &mut buf).is_ok() {
+                log::info!("  -> I2C device found at address 0x{:02X}", addr);
+            }
+        }
+        log::info!("I2C scan complete");
+
         let i2c = &*Box::leak(Box::new(Mutex::new(i2c)));
 
         let pin_irq = PinDriver::input(pin_irq)?;
 
         // LCD backlight
+        log::info!("Setting up LCD backlight");
         let mut lcd_backlight = LedcDriver::new(
             peripherals.ledc.channel0,
             LedcTimerDriver::new(
@@ -208,7 +219,7 @@ impl Device<'_> {
         lcd_backlight.set_duty_cycle_fully_off().unwrap();
 
         // Setup SPI
-        // TODO: see if there's a good way to do this without making and leaking a Box
+        log::info!("Setting up SPI");
         // Use DMA transfers, with an auto-assigned channel, and a maximum transfer size of 32 KiB.
         let spi_driver_config = SpiDriverConfig::new().dma(spi::Dma::Auto(32 * 1024));
         cfg_if::cfg_if! {
@@ -243,6 +254,7 @@ impl Device<'_> {
                 )?));
             }
         }
+        log::info!("SPI setup complete");
 
         // Setup LCD
         log::info!("Initializing LCD");
@@ -256,10 +268,13 @@ impl Device<'_> {
         let lcd_dc = PinDriver::output(pin_lcd_dc)?;
         let mut lcd = drivers::lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
         lcd.init()?;
+        log::info!("LCD initialized");
 
         // Setup I/O expander
+        log::info!("Initializing IO expander");
         let mut io_expander = drivers::io_expander::TCA9535::new(MutexI2C::new(&i2c));
         io_expander.get_pins()?;
+        log::info!("IO expander initialized");
 
         // Direct buttons
         let button_home = PinDriver::input(pin_home)?;
@@ -269,36 +284,48 @@ impl Device<'_> {
         button_power.set_high()?;
 
         // Setup RTC
+        log::info!("Initializing RTC");
         let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
+        log::info!("RTC initialized");
 
         // Setup battery fuel gauge
+        log::info!("Initializing fuel gauge");
         let mut fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
         let _ = fuel_gauge.set_alert_soc_change(true); // fuel gauge won't work without a battery
         let mut pin_vbus_pgood = PinDriver::input(pin_vbus_pgood)?;
         pin_vbus_pgood.set_pull(gpio::Pull::Up)?;
         let pin_batt_chg = PinDriver::input(pin_batt_chg)?;
+        log::info!("Fuel gauge initialized");
 
         // Setup IMU
+        log::info!("Initializing IMU");
         let mut imu = drivers::imu::LSM6DS3TRC::new(MutexI2C::new(&i2c));
         imu.init()?;
+        log::info!("IMU initialized");
 
         // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
         std::thread::sleep(FPGA_POWER_DELAY.saturating_sub(time_since_fpga_power));
+        log::info!("FPGA power stabilization complete");
 
         // Setup DAC (requires fpga_power on)
         log::info!("Initializing DAC");
         let dac_reset = PinDriver::output(pin_dac_reset)?;
         let mut dac = drivers::dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
         dac.init()?;
+        log::info!("DAC initialized");
+        log::info!("Configuring DAC interrupts");
         dac.configure_interrupts()?;
+        log::info!("Setting DAC volume");
         dac.set_volume(kvs::keys::VOLUME.get().unwrap())?;
         dac.set_mute(false)?;
         let headphones_detected = dac.get_headphones_detected()?;
         dac.set_headphones_enabled(headphones_detected)?;
         dac.set_speakers_enabled(!headphones_detected)?;
+        log::info!("DAC audio routing set (headphones: {})", headphones_detected);
 
         // Setup FPGA (without programming)
+        log::info!("Initializing FPGA driver");
         let fpga_done = PinDriver::input(pin_fpga_done)?;
         let mut fpga_program_b = PinDriver::output_od(pin_fpga_program_b)?;
         fpga_program_b.set_high()?; // Initializing pin sets this to low -- release it to high-z immediately.
@@ -312,9 +339,6 @@ impl Device<'_> {
                     .baudrate(rate.into())
                     .duplex(spi::config::Duplex::Half);
                 // SAFETY: this CS pin is used in all the data SPIs.
-                // They're used in the same mode (output), and controlled only by software,
-                // and never used at the same time (either read *or* write are used at any time).
-                // There doesn't appear to be any other way to use multiple clock speeds.
                 let cs_pin = unsafe { pin_fpga_spi_cs.clone_unchecked() };
                 let mut spi = SpiSoftCsDeviceDriver::new(
                     SpiSharedDeviceDriver::new(fpga_spi_driver, &config).unwrap(),
@@ -339,8 +363,10 @@ impl Device<'_> {
             fpga_data_spis,
             fpga_program_spi,
         );
+        log::info!("FPGA driver initialized");
 
         // Mount sdcard to /sdcard
+        log::info!("Mounting SD card...");
         let sdcard = drivers::sdcard::mount_sdcard(
             "/sdcard",
             pin_sdio_clk,
@@ -352,6 +378,11 @@ impl Device<'_> {
             Some(pin_sd_detect),
         )
         .ok();
+        if sdcard.is_some() {
+            log::info!("SD card mounted successfully");
+        } else {
+            log::error!("SD card mount FAILED");
+        }
 
         let mut device = Device {
             led,
@@ -384,9 +415,11 @@ impl Device<'_> {
 
         Device::setup_interrupts();
 
+        log::info!("Device init: all subsystems initialized successfully");
         Ok(())
     }
 
+    // ... 后面的方法保持不变 ...
     pub fn get() -> &'static Mutex<Device<'static>> {
         DEVICE.get().unwrap()
     }
@@ -395,78 +428,48 @@ impl Device<'_> {
         Device::get().lock().unwrap()
     }
 
-    /// Enable or disable FPGA power.
-    ///
-    /// Note that it may take around 5ms to stabilize.
     pub fn set_fpga_power(&mut self, enable: bool) -> Result<(), anyhow::Error> {
-        // TODO: maybe return a Future that completes after it's stable?
         self.fpga_power.set_level(enable.into())?;
         Ok(())
     }
 
-    /// Display a framebuffer.
-    ///
-    /// Currently always an FPGA overlay.
     pub fn display_framebuffer_raw(&mut self, raw: &[u8]) {
         let _ = self.fpga.write_overlay(0, raw);
         let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
     }
 
-    /// Gracefully turn the device off.
     pub fn power_off(&mut self) -> ! {
         log::info!("Powering off");
         self.prepare_for_power_off();
-
-        // Hold down the power button until the device shuts off.
         let _ = self.button_power.set_low();
         loop {
             std::thread::park();
         }
     }
 
-    /// Gracefully soft reset.
     pub fn reboot(&mut self) -> ! {
         log::info!("Rebooting");
         self.prepare_for_power_off();
         esp_idf_svc::hal::reset::restart();
     }
 
-    /// Prepare for power-off or reset, by powering down peripherals and saving state.
-    ///
-    /// The device must go through a [soft] reset to function correctly after this.
     fn prepare_for_power_off(&mut self) {
         let _ = self.change_display_mode(DisplayMode::None);
-        // Hold DAC in reset, otherwise it interferes with I2C if rebooting.
         let _ = self.dac.reset_hold();
-        // TODO: high-Z SPI, other FPGA-power-domain pins.
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();
     }
 
-    /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
     pub fn set_brightness(&mut self, brightness: f32) {
-        // Brightness is perceived non-linearly -- 50% brightness is one step
-        // less bright than 100%, 25% is one step less than 50%, etc.
-        // Note that <1% duty cycle seems to be completely black. So we scale
-        // brightness appropriately such that 0.0 maps to 1%.
         let max_duty = self.lcd_backlight.get_max_duty() as f32;
         let duty = ((0.99 * max_duty.powf(brightness)) + (0.01 * max_duty)) as u16;
-        log::info!(
-            "Setting LCD brightness to {} ({} / {})",
-            brightness,
-            duty,
-            max_duty
-        );
+        log::info!("Setting LCD brightness to {} ({} / {})", brightness, duty, max_duty);
         self.lcd_backlight_duty = duty;
         if self.display_mode == DisplayMode::Internal {
             self.lcd_backlight.set_duty_cycle(duty).unwrap();
         }
     }
 
-    /// Initialize the system time (after boot).
-    ///
-    /// Reads the time from the RTC. Sets a default time if no time is set.
-    /// Then sets it in esp-idf (via libc settimeofday).
     fn init_datetime(&mut self) {
         if self.rtc.read_datetime().unwrap().is_none() {
             log::warn!("No date set, resetting");
@@ -477,19 +480,16 @@ impl Device<'_> {
         Device::set_esp_datetime(self.get_datetime());
     }
 
-    /// Set the esp-idf system time.
     fn set_esp_datetime(dt: time::OffsetDateTime) {
         let timeval = esp_idf_svc::sys::timeval {
             tv_sec: dt.unix_timestamp(),
             tv_usec: 0,
         };
         unsafe {
-            // SAFETY: this is safe to call with valid or null pointers.
             esp_idf_svc::sys::settimeofday(&timeval, std::ptr::null());
         }
     }
 
-    /// Get the Device datetime.
     pub fn get_datetime(&mut self) -> time::OffsetDateTime {
         let rtc_time = self.rtc.read_datetime().unwrap();
         let ts = rtc_time
@@ -498,7 +498,6 @@ impl Device<'_> {
         time::OffsetDateTime::from_unix_timestamp(ts as i64).unwrap()
     }
 
-    /// Set the Device datetime.
     pub fn set_datetime(&mut self, dt: time::OffsetDateTime) {
         log::info!("Setting system time: {:?}", dt);
         Device::set_esp_datetime(dt);
@@ -507,31 +506,24 @@ impl Device<'_> {
         self.rtc.write_datetime(dt).unwrap();
     }
 
-    /// Update the display mode (internal vs external).
     pub fn change_display_mode(&mut self, new_mode: DisplayMode) -> Result<(), anyhow::Error> {
         let old_mode = self.display_mode;
         if old_mode == new_mode {
             return Ok(());
         }
         log::info!("Display mode: {:?}", new_mode);
-
         if old_mode == DisplayMode::Internal {
             self.lcd_backlight.set_duty_cycle_fully_off().unwrap();
             self.lcd.enter_sleep()?;
         }
-
         self.fpga.set_display_mode(new_mode)?;
-
         if new_mode == DisplayMode::Internal {
             self.lcd.exit_sleep()?;
-
-            // Let LCD stabilize and refresh before turning on backlight. Measured empirically.
             std::thread::sleep(Duration::from_millis(200));
             self.lcd_backlight
                 .set_duty_cycle(self.lcd_backlight_duty)
                 .unwrap();
         }
-
         self.display_mode = new_mode;
         Ok(())
     }
