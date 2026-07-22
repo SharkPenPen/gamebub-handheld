@@ -19,9 +19,10 @@ jobs:
           buildtargets: esp32s3
           ldproxy: true
 
-      - name: Install espflash (binary)
+      - name: Install espflash (binary from v2.1.0)
         run: |
-          curl -L https://github.com/esp-rs/espflash/releases/latest/download/cargo-espflash-x86_64-unknown-linux-gnu.tar.gz | tar xz -C /tmp
+          curl -fL https://github.com/esp-rs/espflash/releases/download/v2.1.0/cargo-espflash-x86_64-unknown-linux-gnu.tar.gz -o /tmp/cargo-espflash.tar.gz
+          tar xzf /tmp/cargo-espflash.tar.gz -C /tmp
           sudo mv /tmp/cargo-espflash /usr/local/bin/
 
       - name: Build firmware
