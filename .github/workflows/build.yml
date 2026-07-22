@@ -14,29 +14,39 @@ jobs:
       # 缓存 Rust 编译依赖，加速后续构建
       - uses: Swatinem/rust-cache@v2
 
-      # 安装 ESP32-S3 工具链（编译器、链接器等）
+      # 安装 ESP32‑S3 工具链（编译器、链接器）
       - uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
           buildtargets: esp32s3
           ldproxy: true
 
-      # 安装 espflash（官方发布的可执行文件，无需编译）
-      - uses: esp-rs/actions/install-espflash@v1
-        with:
-          version: '3.0.0'   # 指定稳定版
+      # 安装 cargo‑binstall（用它快速安装 cargo‑espflash）
+      - name: Install cargo-binstall
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+            | bash
 
-      # 先编译一次，让可能的编译错误提前暴露（可选）
+      # 安装 cargo‑espflash（二进制会自动放到 ~/.cargo/bin）
+      - name: Install espflash
+        run: cargo binstall cargo-espflash --version 3.0.0 --no-confirm
+
+      # 👇 关键：把 ~/.cargo/bin 加入后续步骤的 PATH
+      - name: Ensure cargo bin is in PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      # 先编译一次，提前暴露可能的编译错误（可选）
       - name: Build firmware
         working-directory: firmware/handheld
         run: cargo build --release --features rev2
 
-      # 生成合并后的完整镜像（bootloader + 分区表 + app）
+      # 生成合并后的完整固件（bootloader + 分区表 + 应用）
       - name: Generate merged firmware
         working-directory: firmware/handheld
-        run: espflash save-image --release --chip esp32s3 --features rev2 --merge firmware_merged.bin
+        run: cargo-espflash save-image --release --chip esp32s3 --features rev2 --merge firmware_merged.bin
 
-      # 上传构建产物（合并镜像 + ELF 调试文件）
+      # 上传产物
       - uses: actions/upload-artifact@v4
         with:
           name: handheld-firmware
