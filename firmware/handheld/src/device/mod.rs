@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::kvs;
 use drivers::sdcard::Sdcard;
+use embedded_hal::i2c::I2c;          // <--- 新增，用于扫描时调用 trait 方法
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
@@ -190,10 +191,11 @@ impl Device<'_> {
         // Initialize I2C
         log::info!("Initializing I2C bus...");
         let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
-        let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
+        let mut i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
         log::info!("I2C driver created. Scanning bus for devices...");
         for addr in 1u8..=127u8 {
             let mut buf = [0u8; 1];
+            // 使用 embedded-hal trait 的 write_read (3个参数)
             if i2c.write_read(addr, &[0x00], &mut buf).is_ok() {
                 log::info!("  -> I2C device found at address 0x{:02X}", addr);
             }
@@ -419,7 +421,7 @@ impl Device<'_> {
         Ok(())
     }
 
-    // ... 后面的方法保持不变 ...
+    // ... 下面的方法保持与之前完全一致 ...
     pub fn get() -> &'static Mutex<Device<'static>> {
         DEVICE.get().unwrap()
     }
