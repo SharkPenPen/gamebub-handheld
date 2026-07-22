@@ -19,11 +19,14 @@ jobs:
           buildtargets: esp32s3
           ldproxy: true
 
-      - name: Install espflash (binary from v2.1.0)
+      - name: Install cargo-binstall
         run: |
-          curl -fL https://github.com/esp-rs/espflash/releases/download/v2.1.0/cargo-espflash-x86_64-unknown-linux-gnu.tar.gz -o /tmp/cargo-espflash.tar.gz
-          tar xzf /tmp/cargo-espflash.tar.gz -C /tmp
-          sudo mv /tmp/cargo-espflash /usr/local/bin/
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
+            | bash
+
+      - name: Install espflash (binary, no Rust compilation)
+        run: cargo binstall cargo-espflash --version 3.0.0 --no-confirm --no-fallback
 
       - name: Build firmware
         working-directory: firmware/handheld
