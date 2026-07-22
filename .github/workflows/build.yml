@@ -10,42 +10,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: Swatinem/rust-cache@v2
 
-      # 1. 安装 ESP32 Rust 工具链（包含 Xtensa 编译器）
+      # 安装 ESP32 编译器
       - uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
           buildtargets: esp32s3
           ldproxy: true
 
-      # 2. 安装 cargo-binstall（专门管理预编译工具的命令）
+      # 安装 cargo-binstall（用来装 espflash）
       - name: Install cargo-binstall
         run: |
           curl -L --proto '=https' --tlsv1.2 -sSf \
             https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
             | bash
 
-      # 3. 用 binstall 安装 cargo-espflash（自动下载二进制，不编译）
+      # 安装 cargo-espflash
       - name: Install espflash
         run: cargo binstall cargo-espflash --version 3.0.0 --no-confirm
 
-      # 4. 编译固件（这部分你的原代码）
+      # 编译固件（这一步会生成 ELF，其实 save-image 也会编译，但留着不影响）
       - name: Build firmware
         working-directory: firmware/handheld
         run: cargo build --release --features rev2
 
-      # 5. 生成 flashable 二进制文件
-      - name: Generate binary
+      # 👇 关键改动：生成合并后的完整固件（bootloader + 分区表 + app）
+      - name: Generate merged firmware
         working-directory: firmware/handheld
-        run: cargo espflash save-image --release --chip esp32s3 --features rev2 firmware.bin
+        run: |
+          cargo espflash save-image --release \
+            --chip esp32s3 \
+            --features rev2 \
+            --merge \
+            firmware_merged.bin
 
-      # 6. 上传产物
+      # 上传产物（包含 ELF 和合并后的 bin）
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: handheld-firmware
           path: |
+            firmware/handheld/firmware_merged.bin
             firmware/handheld/target/release/*.elf
-            firmware/handheld/firmware.bin
           if-no-files-found: error
