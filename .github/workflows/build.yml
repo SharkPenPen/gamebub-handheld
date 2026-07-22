@@ -20,7 +20,7 @@ jobs:
           ldproxy: true
 
       - name: Install espflash
-        run: cargo install espflash
+        run: cargo install cargo-espflash --version 3.0.0   # ← 只改了这一行
 
       - name: Build firmware
         working-directory: firmware/handheld
