@@ -11,32 +11,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 缓存 Rust 编译依赖，加速后续构建
       - uses: Swatinem/rust-cache@v2
 
-      # 安装 ESP32‑S3 工具链（编译器、链接器）
       - uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
           buildtargets: esp32s3
           ldproxy: true
 
-      # 👇 用 taiki-e/install-action 安装 cargo-espflash（含二进制 espflash）
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-espflash@3.0.0
 
-      # 先编译一次，提前暴露可能的编译错误（可选）
       - name: Build firmware
         working-directory: firmware/handheld
         run: cargo build --release --features rev2
 
-      # 生成合并后的完整固件（bootloader + 分区表 + 应用）
       - name: Generate merged firmware
         working-directory: firmware/handheld
-        run: cargo-espflash save-image --release --chip esp32s3 --features rev2 --merge firmware_merged.bin
+        run: cargo espflash save-image --release --chip esp32s3 --features rev2 --merge firmware_merged.bin
 
-      # 上传产物（合并镜像 + ELF 调试文件）
       - uses: actions/upload-artifact@v4
         with:
           name: handheld-firmware
