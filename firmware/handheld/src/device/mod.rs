@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::kvs;
 use drivers::sdcard::Sdcard;
-use embedded_hal::i2c::I2c;          // <--- 新增，用于扫描时调用 trait 方法
+use embedded_hal::i2c::I2c;                    // ⬅️ 用于扫描时显式调用 trait 方法
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
@@ -193,10 +193,11 @@ impl Device<'_> {
         let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
         let mut i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
         log::info!("I2C driver created. Scanning bus for devices...");
+
+        // ⬇️ 关键修复：用完全限定语法调用 embedded-hal trait 的 write_read
         for addr in 1u8..=127u8 {
             let mut buf = [0u8; 1];
-            // 使用 embedded-hal trait 的 write_read (3个参数)
-            if i2c.write_read(addr, &[0x00], &mut buf).is_ok() {
+            if I2c::write_read(&mut i2c, addr, &[0x00], &mut buf).is_ok() {
                 log::info!("  -> I2C device found at address 0x{:02X}", addr);
             }
         }
@@ -222,7 +223,6 @@ impl Device<'_> {
 
         // Setup SPI
         log::info!("Setting up SPI");
-        // Use DMA transfers, with an auto-assigned channel, and a maximum transfer size of 32 KiB.
         let spi_driver_config = SpiDriverConfig::new().dma(spi::Dma::Auto(32 * 1024));
         cfg_if::cfg_if! {
             if #[cfg(feature = "rev1")] {
@@ -330,7 +330,7 @@ impl Device<'_> {
         log::info!("Initializing FPGA driver");
         let fpga_done = PinDriver::input(pin_fpga_done)?;
         let mut fpga_program_b = PinDriver::output_od(pin_fpga_program_b)?;
-        fpga_program_b.set_high()?; // Initializing pin sets this to low -- release it to high-z immediately.
+        fpga_program_b.set_high()?;
         let fpga_init_b = PinDriver::input(pin_fpga_init_b)?;
 
         let spi_rates = [40.MHz(), 20.MHz(), 16.MHz(), 10.MHz()];
@@ -340,7 +340,6 @@ impl Device<'_> {
                 let config = spi::config::Config::new()
                     .baudrate(rate.into())
                     .duplex(spi::config::Duplex::Half);
-                // SAFETY: this CS pin is used in all the data SPIs.
                 let cs_pin = unsafe { pin_fpga_spi_cs.clone_unchecked() };
                 let mut spi = SpiSoftCsDeviceDriver::new(
                     SpiSharedDeviceDriver::new(fpga_spi_driver, &config).unwrap(),
@@ -348,7 +347,7 @@ impl Device<'_> {
                     gpio::Level::High,
                 )
                 .unwrap();
-                spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
+                spi.cs_pre_delay_us(100);
                 (spi, Hertz::from(rate))
             })
             .collect::<Vec<_>>();
@@ -421,7 +420,6 @@ impl Device<'_> {
         Ok(())
     }
 
-    // ... 下面的方法保持与之前完全一致 ...
     pub fn get() -> &'static Mutex<Device<'static>> {
         DEVICE.get().unwrap()
     }
@@ -539,6 +537,7 @@ impl Device<'_> {
     }
 
     pub fn get_vbus_pgood(&self) -> bool {
-        self.pin_vbus_pgood.is_low() // Active low
+        self.pin_vbus_pgood.is_low()
     }
 }
+``
