@@ -21,20 +21,10 @@ jobs:
           buildtargets: esp32s3
           ldproxy: true
 
-      # 安装 cargo‑binstall（用它快速安装 cargo‑espflash）
-      - name: Install cargo-binstall
-        run: |
-          curl -L --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh \
-            | bash
-
-      # 安装 cargo‑espflash（二进制会自动放到 ~/.cargo/bin）
-      - name: Install espflash
-        run: cargo binstall cargo-espflash --version 3.0.0 --no-confirm
-
-      # 👇 关键：把 ~/.cargo/bin 加入后续步骤的 PATH
-      - name: Ensure cargo bin is in PATH
-        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      # 👇 用 taiki-e/install-action 安装 cargo-espflash（含二进制 espflash）
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-espflash@3.0.0
 
       # 先编译一次，提前暴露可能的编译错误（可选）
       - name: Build firmware
@@ -46,7 +36,7 @@ jobs:
         working-directory: firmware/handheld
         run: cargo-espflash save-image --release --chip esp32s3 --features rev2 --merge firmware_merged.bin
 
-      # 上传产物
+      # 上传产物（合并镜像 + ELF 调试文件）
       - uses: actions/upload-artifact@v4
         with:
           name: handheld-firmware
