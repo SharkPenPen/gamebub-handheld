@@ -1,4 +1,4 @@
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 use anyhow::Context;                // 新增：用于错误上下文
@@ -410,7 +410,7 @@ impl Device<'_> {
         Ok(())
     }
 
-    // ===================== 以下为原有方法，必须保留 =====================
+    // ===================== 以下为原有方法 =====================
 
     pub fn get() -> &'static Mutex<Device<'static>> {
         DEVICE.get().unwrap()
