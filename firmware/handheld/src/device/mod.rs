@@ -1,7 +1,7 @@
-use std::sync::{Mutex, MutexGuard, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use anyhow::Context;    // ← 新增
+use anyhow::Context;                // 新增：用于错误上下文
 use crate::kvs;
 use drivers::sdcard::Sdcard;
 use embedded_hal::pwm::SetDutyCycle;
@@ -410,7 +410,149 @@ impl Device<'_> {
         Ok(())
     }
 
-    // ... 后面的方法保持原样，这里省略以节省篇幅 ...
-    // 实际上你需要保留 Device 的所有其他方法，请把上一轮我发的完整文件中后面部分也复制进去。
-    // 为了简洁，这里只贴了 init() 修改的部分，实际应用中务必把完整文件替换。
+    // ===================== 以下为原有方法，必须保留 =====================
+
+    pub fn get() -> &'static Mutex<Device<'static>> {
+        DEVICE.get().unwrap()
+    }
+
+    pub fn lock() -> MutexGuard<'static, Device<'static>> {
+        Device::get().lock().unwrap()
+    }
+
+    /// Enable or disable FPGA power.
+    ///
+    /// Note that it may take around 5ms to stabilize.
+    pub fn set_fpga_power(&mut self, enable: bool) -> Result<(), anyhow::Error> {
+        self.fpga_power.set_level(enable.into())?;
+        Ok(())
+    }
+
+    /// Display a framebuffer.
+    ///
+    /// Currently always an FPGA overlay.
+    pub fn display_framebuffer_raw(&mut self, raw: &[u8]) {
+        let _ = self.fpga.write_overlay(0, raw);
+        let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
+    }
+
+    /// Gracefully turn the device off.
+    pub fn power_off(&mut self) -> ! {
+        log::info!("Powering off");
+        self.prepare_for_power_off();
+
+        // Hold down the power button until the device shuts off.
+        let _ = self.button_power.set_low();
+        loop {
+            std::thread::park();
+        }
+    }
+
+    /// Gracefully soft reset.
+    pub fn reboot(&mut self) -> ! {
+        log::info!("Rebooting");
+        self.prepare_for_power_off();
+        esp_idf_svc::hal::reset::restart();
+    }
+
+    /// Prepare for power-off or reset, by powering down peripherals and saving state.
+    ///
+    /// The device must go through a [soft] reset to function correctly after this.
+    fn prepare_for_power_off(&mut self) {
+        let _ = self.change_display_mode(DisplayMode::None);
+        // Hold DAC in reset, otherwise it interferes with I2C if rebooting.
+        let _ = self.dac.reset_hold();
+        // TODO: high-Z SPI, other FPGA-power-domain pins.
+        let _ = self.set_fpga_power(false);
+        kvs::keys::flush_all();
+    }
+
+    /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
+    pub fn set_brightness(&mut self, brightness: f32) {
+        let max_duty = self.lcd_backlight.get_max_duty() as f32;
+        let duty = ((0.99 * max_duty.powf(brightness)) + (0.01 * max_duty)) as u16;
+        self.lcd_backlight_duty = duty;
+        if self.display_mode == DisplayMode::Internal {
+            self.lcd_backlight.set_duty_cycle(duty).unwrap();
+        }
+    }
+
+    /// Initialize the system time (after boot).
+    fn init_datetime(&mut self) {
+        if self.rtc.read_datetime().unwrap().is_none() {
+            log::warn!("No date set, resetting");
+            self.rtc
+                .write_datetime(drivers::rtc::Datetime::default())
+                .unwrap();
+        }
+        Device::set_esp_datetime(self.get_datetime());
+    }
+
+    /// Set the esp-idf system time.
+    fn set_esp_datetime(dt: time::OffsetDateTime) {
+        let timeval = esp_idf_svc::sys::timeval {
+            tv_sec: dt.unix_timestamp(),
+            tv_usec: 0,
+        };
+        unsafe {
+            esp_idf_svc::sys::settimeofday(&timeval, std::ptr::null());
+        }
+    }
+
+    /// Get the Device datetime.
+    pub fn get_datetime(&mut self) -> time::OffsetDateTime {
+        let rtc_time = self.rtc.read_datetime().unwrap();
+        let ts = rtc_time
+            .and_then(|dt| dt.as_timestamp())
+            .unwrap_or(drivers::rtc::TIMESTAMP_2000);
+        time::OffsetDateTime::from_unix_timestamp(ts as i64).unwrap()
+    }
+
+    /// Set the Device datetime.
+    pub fn set_datetime(&mut self, dt: time::OffsetDateTime) {
+        log::info!("Setting system time: {:?}", dt);
+        Device::set_esp_datetime(dt);
+        let ts = dt.unix_timestamp();
+        let dt = drivers::rtc::Datetime::from_timestamp(ts as u64).unwrap_or_default();
+        self.rtc.write_datetime(dt).unwrap();
+    }
+
+    /// Update the display mode (internal vs external).
+    pub fn change_display_mode(&mut self, new_mode: DisplayMode) -> Result<(), anyhow::Error> {
+        let old_mode = self.display_mode;
+        if old_mode == new_mode {
+            return Ok(());
+        }
+        log::info!("Display mode: {:?}", new_mode);
+
+        if old_mode == DisplayMode::Internal {
+            self.lcd_backlight.set_duty_cycle_fully_off().unwrap();
+            self.lcd.enter_sleep()?;
+        }
+
+        self.fpga.set_display_mode(new_mode)?;
+
+        if new_mode == DisplayMode::Internal {
+            self.lcd.exit_sleep()?;
+            std::thread::sleep(Duration::from_millis(200));
+            self.lcd_backlight
+                .set_duty_cycle(self.lcd_backlight_duty)
+                .unwrap();
+        }
+
+        self.display_mode = new_mode;
+        Ok(())
+    }
+
+    pub fn get_display_mode(&self) -> DisplayMode {
+        self.display_mode
+    }
+
+    pub fn get_battery_is_charging(&self) -> bool {
+        self.pin_batt_chg.is_high()
+    }
+
+    pub fn get_vbus_pgood(&self) -> bool {
+        self.pin_vbus_pgood.is_low() // Active low
+    }
 }
