@@ -13,11 +13,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # 👇 关键：传入 GITHUB_TOKEN 避免 API 速率限制
       - uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
           buildtargets: esp32s3
           ldproxy: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: taiki-e/install-action@v2
         with:
