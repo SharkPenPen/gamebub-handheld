@@ -1,9 +1,9 @@
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
+use anyhow::Context;    // ← 新增：用于附加错误上下文
 use crate::kvs;
 use drivers::sdcard::Sdcard;
-use embedded_hal::i2c::I2c;
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
@@ -23,6 +23,7 @@ pub mod drivers;
 mod input;
 mod interrupt;
 
+/// Time it may take for FPGA power rails to stabilize after enable.
 const FPGA_POWER_DELAY: Duration = Duration::from_millis(5);
 
 static DEVICE: OnceLock<Mutex<Device>> = OnceLock::new();
@@ -34,24 +35,40 @@ pub enum DisplayMode {
     External,
 }
 
+/// Main container for device hardware.
 pub struct Device<'a> {
+    /// Status led, active-high.
     #[allow(unused)]
     led: PinDriver<'a, AnyOutputPin, Output>,
+
+    /// FPGA power in, active-high.
     fpga_power: PinDriver<'a, AnyOutputPin, Output>,
+
+    /// The I2C bus.
     #[allow(unused)]
     i2c: &'a Mutex<I2cDriver<'a>>,
+
+    /// LCD backlight PWM driver.
     lcd_backlight: LedcDriver<'a>,
     lcd_backlight_duty: u16,
+
+    /// LCD driver
     pub lcd: drivers::lcd::ILI9488<
         PinDriver<'a, AnyOutputPin, Output>,
         PinDriver<'a, AnyOutputPin, Output>,
         SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
     >,
+
+    /// Display mode (if initialized)
     pub display_mode: DisplayMode,
+
+    /// DAC driver
     pub dac: drivers::dac::TLV320DAC3101<
         PinDriver<'a, AnyOutputPin, Output>,
         MutexI2C<'a, I2cDriver<'a>>,
     >,
+
+    /// FPGA driver
     pub fpga: drivers::fpga::Fpga<
         'a,
         PinDriver<'a, AnyInputPin, Input>,
@@ -59,9 +76,16 @@ pub struct Device<'a> {
         PinDriver<'a, AnyIOPin, Input>,
         SpiDeviceDriver<'a, &'a SpiDriver<'a>>,
     >,
+
+    /// RTC driver
     pub rtc: drivers::rtc::PCF8563<MutexI2C<'a, I2cDriver<'a>>>,
+
+    /// Battery fuel gauge driver
     pub fuel_gauge: drivers::fuel_gauge::MAX17048<MutexI2C<'a, I2cDriver<'a>>>,
+
+    /// IMU driver
     pub imu: drivers::imu::LSM6DS3TRC<MutexI2C<'a, I2cDriver<'a>>>,
+
     io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
     button_home: PinDriver<'a, AnyInputPin, Input>,
     button_vol_up: PinDriver<'a, AnyInputPin, Input>,
@@ -70,6 +94,8 @@ pub struct Device<'a> {
     pin_irq: PinDriver<'a, AnyInputPin, Input>,
     pin_vbus_pgood: PinDriver<'a, AnyIOPin, Input>,
     pin_batt_chg: PinDriver<'a, AnyInputPin, Input>,
+
+    /// Sdcard,
     pub sdcard: Option<Sdcard>,
 }
 
@@ -79,7 +105,9 @@ impl Device<'_> {
             panic!("Device already initialized.");
         }
 
-        let peripherals = Peripherals::take()?;
+        log::info!("[INIT] 开始 Device 硬件初始化");
+
+        let peripherals = Peripherals::take().context("无法获取外设句柄（ESP-IDF 错误）")?;
         cfg_if::cfg_if! {
             if #[cfg(feature = "rev1")] {
                 let pin_led = peripherals.pins.gpio3.downgrade_output();
@@ -151,33 +179,30 @@ impl Device<'_> {
                 let pin_dac_reset = peripherals.pins.gpio45.downgrade_output();
             }
         }
+        log::info!("[INIT] 引脚配置完成（{} 版本）", if cfg!(feature = "rev1") { "rev1" } else { "rev2" });
 
-        let mut led = PinDriver::output(pin_led)?;
+        // Status LED
+        log::info!("[INIT] 初始化状态 LED");
+        let mut led = PinDriver::output(pin_led).context("状态 LED 引脚初始化失败（检查 GPIO 是否被占用或短路）")?;
         led.set_low()?;
 
-        let mut fpga_power = PinDriver::output(pin_fpga_power)?;
+        // FPGA power
+        log::info!("[INIT] 开启 FPGA 电源");
+        let mut fpga_power = PinDriver::output(pin_fpga_power).context("FPGA 电源引脚初始化失败（检查 pin_fpga_power 硬件连接）")?;
         fpga_power.set_high()?;
         let fpga_power_time = Instant::now();
-        log::info!("FPGA power enabled, waiting for stabilization...");
 
-        log::info!("Initializing I2C bus...");
+        // Initialize I2C
+        log::info!("[INIT] 初始化 I2C 总线（400kHz）");
         let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
-        let mut i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
-        log::info!("I2C driver created. Scanning bus for devices...");
-
-        for addr in 1u8..=127u8 {
-            let mut buf = [0u8; 1];
-            if I2c::write_read(&mut i2c, addr, &[0x00], &mut buf).is_ok() {
-                log::info!("  -> I2C device found at address 0x{:02X}", addr);
-            }
-        }
-        log::info!("I2C scan complete");
-
+        let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)
+            .context("I2C 驱动初始化失败：请检查 SDA/SCL 引脚焊接、上拉电阻以及是否与其他设备短路")?;
         let i2c = &*Box::leak(Box::new(Mutex::new(i2c)));
 
-        let pin_irq = PinDriver::input(pin_irq)?;
+        let pin_irq = PinDriver::input(pin_irq).context("IRQ 引脚配置失败（检查 IO 口）")?;
 
-        log::info!("Setting up LCD backlight");
+        // LCD backlight
+        log::info!("[INIT] 初始化 LCD 背光 PWM");
         let mut lcd_backlight = LedcDriver::new(
             peripherals.ledc.channel0,
             LedcTimerDriver::new(
@@ -185,12 +210,13 @@ impl Device<'_> {
                 &ledc::config::TimerConfig::new()
                     .frequency(25.kHz().into())
                     .resolution(ledc::config::Resolution::Bits11),
-            )?,
+            ).context("LCD 背光 PWM 定时器初始化失败")?,
             pin_lcd_backlight,
-        )?;
+        ).context("LCD 背光 PWM 通道初始化失败（检查 pin_lcd_backlight 是否焊接正确）")?;
         lcd_backlight.set_duty_cycle_fully_off().unwrap();
 
-        log::info!("Setting up SPI");
+        // Setup SPI
+        log::info!("[INIT] 初始化 SPI 总线");
         let spi_driver_config = SpiDriverConfig::new().dma(spi::Dma::Auto(32 * 1024));
         cfg_if::cfg_if! {
             if #[cfg(feature = "rev1")] {
@@ -202,7 +228,7 @@ impl Device<'_> {
                     pin_spi_d2,
                     pin_spi_d3,
                     &spi_driver_config,
-                )?));
+                ).context("SPI 总线（Quad模式）初始化失败（检查 SPI 引脚焊接）")?));
                 let fpga_spi_driver = spi_driver;
                 let lcd_spi_driver = spi_driver;
             } else if #[cfg(feature = "rev2")] {
@@ -214,83 +240,85 @@ impl Device<'_> {
                     pin_fpga_spi_d2,
                     pin_fpga_spi_d3,
                     &spi_driver_config,
-                )?));
+                ).context("FPGA SPI 总线初始化失败（检查 rev2 原理图对应引脚：CLK=12, D0=11, D1=13, D2=14, D3=9）")?));
                 let lcd_spi_driver = &*Box::leak(Box::new(SpiDriver::new(
                     peripherals.spi3,
                     pin_lcd_spi_clk,
                     pin_lcd_spi_d0,
                     Option::<AnyInputPin>::None,
                     &spi_driver_config,
-                )?));
+                ).context("LCD SPI 总线初始化失败（检查 rev2：CLK=4, D0=5）")?));
             }
         }
-        log::info!("SPI setup complete");
 
-        log::info!("Initializing LCD");
+        // Setup LCD
+        log::info!("[INIT] 开始初始化 LCD");
         let lcd_spi_config = spi::config::Config::new().baudrate(10.MHz().into());
         let lcd_spi = SpiSoftCsDeviceDriver::new(
-            SpiSharedDeviceDriver::new(lcd_spi_driver, &lcd_spi_config)?,
+            SpiSharedDeviceDriver::new(lcd_spi_driver, &lcd_spi_config).context("LCD SPI 设备创建失败")?,
             pin_lcd_cs,
             gpio::Level::High,
-        )?;
-        let lcd_reset = PinDriver::output(pin_lcd_reset)?;
-        let lcd_dc = PinDriver::output(pin_lcd_dc)?;
+        ).context("LCD CS 引脚配置失败")?;
+        let lcd_reset = PinDriver::output(pin_lcd_reset).context("LCD 复位引脚配置失败")?;
+        let lcd_dc = PinDriver::output(pin_lcd_dc).context("LCD DC 引脚配置失败")?;
         let mut lcd = drivers::lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
-        lcd.init()?;
-        log::info!("LCD initialized");
+        lcd.init().context("LCD 初始化失败：请检查 LCD 连接、复位电平及 SPI 信号完整性")?;
+        log::info!("[INIT] LCD 初始化成功");
 
-        log::info!("Initializing IO expander");
+        // Setup I/O expander
+        log::info!("[INIT] 初始化 I/O 扩展器 TCA9535（I2C）");
         let mut io_expander = drivers::io_expander::TCA9535::new(MutexI2C::new(&i2c));
-        io_expander.get_pins()?;
-        log::info!("IO expander initialized");
+        io_expander.get_pins().context("TCA9535 通信失败：检查 I2C 地址、焊接及电源")?;
 
-        let button_home = PinDriver::input(pin_home)?;
-        let button_vol_up = PinDriver::input(pin_vol_up)?;
-        let button_vol_down = PinDriver::input(pin_vol_down)?;
-        let mut button_power = PinDriver::input_output_od(pin_power_switch)?;
+        // Direct buttons
+        log::info!("[INIT] 初始化按键 GPIO");
+        let button_home = PinDriver::input(pin_home).context("Home 按键引脚配置失败")?;
+        let button_vol_up = PinDriver::input(pin_vol_up).context("Vol+ 按键引脚配置失败")?;
+        let button_vol_down = PinDriver::input(pin_vol_down).context("Vol- 按键引脚配置失败")?;
+        let mut button_power = PinDriver::input_output_od(pin_power_switch).context("电源键引脚配置失败")?;
         button_power.set_high()?;
 
-        log::info!("Initializing RTC");
+        // Setup RTC
+        log::info!("[INIT] 初始化 RTC (PCF8563)");
         let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
-        log::info!("RTC initialized");
 
-        log::info!("Initializing fuel gauge");
+        // Setup battery fuel gauge
+        log::info!("[INIT] 初始化电池计量计 MAX17048");
         let mut fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
-        let _ = fuel_gauge.set_alert_soc_change(true);
-        let mut pin_vbus_pgood = PinDriver::input(pin_vbus_pgood)?;
+        let _ = fuel_gauge.set_alert_soc_change(true); // 无电池时可能失败，忽略
+        let mut pin_vbus_pgood = PinDriver::input(pin_vbus_pgood).context("VBUS PG 引脚配置失败")?;
         pin_vbus_pgood.set_pull(gpio::Pull::Up)?;
-        let pin_batt_chg = PinDriver::input(pin_batt_chg)?;
-        log::info!("Fuel gauge initialized");
+        let pin_batt_chg = PinDriver::input(pin_batt_chg).context("充电状态引脚配置失败")?;
 
-        log::info!("Initializing IMU");
+        // Setup IMU
+        log::info!("[INIT] 初始化 IMU (LSM6DS3TRC)");
         let mut imu = drivers::imu::LSM6DS3TRC::new(MutexI2C::new(&i2c));
-        imu.init()?;
-        log::info!("IMU initialized");
+        imu.init().context("IMU 初始化失败：检查 I2C 连接、电源；芯片焊接是否正常？")?;
 
+        // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
         std::thread::sleep(FPGA_POWER_DELAY.saturating_sub(time_since_fpga_power));
-        log::info!("FPGA power stabilization complete");
+        log::info!("[INIT] FPGA 电源稳定等待完成");
 
-        log::info!("Initializing DAC");
-        let dac_reset = PinDriver::output(pin_dac_reset)?;
+        // Setup DAC (requires fpga_power on)
+        log::info!("[INIT] 开始初始化 DAC (TLV320DAC3101)");
+        let dac_reset = PinDriver::output(pin_dac_reset).context("DAC 复位引脚配置失败")?;
         let mut dac = drivers::dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
-        dac.init()?;
-        log::info!("DAC initialized");
-        log::info!("Configuring DAC interrupts");
-        dac.configure_interrupts()?;
-        log::info!("Setting DAC volume");
+        dac.init().context("DAC 初始化失败：检查 DAC 电源、I2C 响应及硬件复位")?;
+        dac.configure_interrupts().context("DAC 中断配置失败")?;
         dac.set_volume(kvs::keys::VOLUME.get().unwrap())?;
         dac.set_mute(false)?;
-        let headphones_detected = dac.get_headphones_detected()?;
+        let headphones_detected = dac.get_headphones_detected().context("DAC 耳机检测失败")?;
         dac.set_headphones_enabled(headphones_detected)?;
         dac.set_speakers_enabled(!headphones_detected)?;
-        log::info!("DAC audio routing set (headphones: {})", headphones_detected);
+        log::info!("[INIT] DAC 初始化成功（耳机={}）", headphones_detected);
 
-        log::info!("Initializing FPGA driver");
-        let fpga_done = PinDriver::input(pin_fpga_done)?;
-        let mut fpga_program_b = PinDriver::output_od(pin_fpga_program_b)?;
+        // Setup FPGA (without programming)
+        log::info!("[INIT] 初始化 FPGA（不烧录逻辑）");
+        let fpga_done = PinDriver::input(pin_fpga_done).context("FPGA DONE 引脚配置失败")?;
+        let mut fpga_program_b = PinDriver::output_od(pin_fpga_program_b).context("FPGA PROGRAM_B 引脚配置失败")?;
         fpga_program_b.set_high()?;
-        let fpga_init_b = PinDriver::input(pin_fpga_init_b)?;
+        let fpga_init_b = PinDriver::input(pin_fpga_init_b).context("FPGA INIT_B 引脚配置失败")?;
 
         let spi_rates = [40.MHz(), 20.MHz(), 16.MHz(), 10.MHz()];
         let fpga_data_spis = spi_rates
@@ -299,6 +327,10 @@ impl Device<'_> {
                 let config = spi::config::Config::new()
                     .baudrate(rate.into())
                     .duplex(spi::config::Duplex::Half);
+                // SAFETY: this CS pin is used in all the data SPIs.
+                // They're used in the same mode (output), and controlled only by software,
+                // and never used at the same time (either read *or* write are used at any time).
+                // There doesn't appear to be any other way to use multiple clock speeds.
                 let cs_pin = unsafe { pin_fpga_spi_cs.clone_unchecked() };
                 let mut spi = SpiSoftCsDeviceDriver::new(
                     SpiSharedDeviceDriver::new(fpga_spi_driver, &config).unwrap(),
@@ -306,16 +338,18 @@ impl Device<'_> {
                     gpio::Level::High,
                 )
                 .unwrap();
-                spi.cs_pre_delay_us(100);
+                spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
                 (spi, Hertz::from(rate))
             })
             .collect::<Vec<_>>();
+        log::info!("[INIT] 为 FPGA 创建了 {} 个速度等级的 SPI 设备", spi_rates.len());
+
         let fpga_program_config = spi::config::Config::new().baudrate(80.MHz().into());
         let fpga_program_spi = SpiDeviceDriver::new(
             fpga_spi_driver,
             Option::<AnyOutputPin>::None,
             &fpga_program_config,
-        )?;
+        ).context("FPGA 烧录 SPI 初始化失败")?;
         let fpga = drivers::fpga::Fpga::new(
             fpga_done,
             fpga_program_b,
@@ -323,9 +357,9 @@ impl Device<'_> {
             fpga_data_spis,
             fpga_program_spi,
         );
-        log::info!("FPGA driver initialized");
 
-        log::info!("Mounting SD card...");
+        // Mount sdcard to /sdcard
+        log::info!("[INIT] 挂载 SD 卡");
         let sdcard = drivers::sdcard::mount_sdcard(
             "/sdcard",
             pin_sdio_clk,
@@ -338,9 +372,9 @@ impl Device<'_> {
         )
         .ok();
         if sdcard.is_some() {
-            log::info!("SD card mounted successfully");
+            log::info!("[INIT] SD 卡挂载成功");
         } else {
-            log::error!("SD card mount FAILED");
+            log::warn!("[INIT] SD 卡挂载失败（可能未插入或硬件问题）");
         }
 
         let mut device = Device {
@@ -366,6 +400,8 @@ impl Device<'_> {
             imu,
             sdcard,
         };
+        log::info!("[INIT] 所有外设结构体创建完毕");
+
         device.init_datetime();
         DEVICE
             .set(Mutex::new(device))
@@ -373,8 +409,8 @@ impl Device<'_> {
             .expect("Device already initialized");
 
         Device::setup_interrupts();
+        log::info!("[INIT] Device 初始化全部完成（中断已注册）");
 
-        log::info!("Device init: all subsystems initialized successfully");
         Ok(())
     }
 
@@ -386,48 +422,78 @@ impl Device<'_> {
         Device::get().lock().unwrap()
     }
 
+    /// Enable or disable FPGA power.
+    ///
+    /// Note that it may take around 5ms to stabilize.
     pub fn set_fpga_power(&mut self, enable: bool) -> Result<(), anyhow::Error> {
+        // TODO: maybe return a Future that completes after it's stable?
         self.fpga_power.set_level(enable.into())?;
         Ok(())
     }
 
+    /// Display a framebuffer.
+    ///
+    /// Currently always an FPGA overlay.
     pub fn display_framebuffer_raw(&mut self, raw: &[u8]) {
         let _ = self.fpga.write_overlay(0, raw);
         let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
     }
 
+    /// Gracefully turn the device off.
     pub fn power_off(&mut self) -> ! {
         log::info!("Powering off");
         self.prepare_for_power_off();
+
+        // Hold down the power button until the device shuts off.
         let _ = self.button_power.set_low();
         loop {
             std::thread::park();
         }
     }
 
+    /// Gracefully soft reset.
     pub fn reboot(&mut self) -> ! {
         log::info!("Rebooting");
         self.prepare_for_power_off();
         esp_idf_svc::hal::reset::restart();
     }
 
+    /// Prepare for power-off or reset, by powering down peripherals and saving state.
+    ///
+    /// The device must go through a [soft] reset to function correctly after this.
     fn prepare_for_power_off(&mut self) {
         let _ = self.change_display_mode(DisplayMode::None);
+        // Hold DAC in reset, otherwise it interferes with I2C if rebooting.
         let _ = self.dac.reset_hold();
+        // TODO: high-Z SPI, other FPGA-power-domain pins.
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();
     }
 
+    /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
     pub fn set_brightness(&mut self, brightness: f32) {
+        // Brightness is perceived non-linearly -- 50% brightness is one step
+        // less bright than 100%, 25% is one step less than 50%, etc.
+        // Note that <1% duty cycle seems to be completely black. So we scale
+        // brightness appropriately such that 0.0 maps to 1%.
         let max_duty = self.lcd_backlight.get_max_duty() as f32;
         let duty = ((0.99 * max_duty.powf(brightness)) + (0.01 * max_duty)) as u16;
-        log::info!("Setting LCD brightness to {} ({} / {})", brightness, duty, max_duty);
+        log::info!(
+            "Setting LCD brightness to {} ({} / {})",
+            brightness,
+            duty,
+            max_duty
+        );
         self.lcd_backlight_duty = duty;
         if self.display_mode == DisplayMode::Internal {
             self.lcd_backlight.set_duty_cycle(duty).unwrap();
         }
     }
 
+    /// Initialize the system time (after boot).
+    ///
+    /// Reads the time from the RTC. Sets a default time if no time is set.
+    /// Then sets it in esp-idf (via libc settimeofday).
     fn init_datetime(&mut self) {
         if self.rtc.read_datetime().unwrap().is_none() {
             log::warn!("No date set, resetting");
@@ -438,16 +504,19 @@ impl Device<'_> {
         Device::set_esp_datetime(self.get_datetime());
     }
 
+    /// Set the esp-idf system time.
     fn set_esp_datetime(dt: time::OffsetDateTime) {
         let timeval = esp_idf_svc::sys::timeval {
             tv_sec: dt.unix_timestamp(),
             tv_usec: 0,
         };
         unsafe {
+            // SAFETY: this is safe to call with valid or null pointers.
             esp_idf_svc::sys::settimeofday(&timeval, std::ptr::null());
         }
     }
 
+    /// Get the Device datetime.
     pub fn get_datetime(&mut self) -> time::OffsetDateTime {
         let rtc_time = self.rtc.read_datetime().unwrap();
         let ts = rtc_time
@@ -456,6 +525,7 @@ impl Device<'_> {
         time::OffsetDateTime::from_unix_timestamp(ts as i64).unwrap()
     }
 
+    /// Set the Device datetime.
     pub fn set_datetime(&mut self, dt: time::OffsetDateTime) {
         log::info!("Setting system time: {:?}", dt);
         Device::set_esp_datetime(dt);
@@ -464,24 +534,31 @@ impl Device<'_> {
         self.rtc.write_datetime(dt).unwrap();
     }
 
+    /// Update the display mode (internal vs external).
     pub fn change_display_mode(&mut self, new_mode: DisplayMode) -> Result<(), anyhow::Error> {
         let old_mode = self.display_mode;
         if old_mode == new_mode {
             return Ok(());
         }
         log::info!("Display mode: {:?}", new_mode);
+
         if old_mode == DisplayMode::Internal {
             self.lcd_backlight.set_duty_cycle_fully_off().unwrap();
             self.lcd.enter_sleep()?;
         }
+
         self.fpga.set_display_mode(new_mode)?;
+
         if new_mode == DisplayMode::Internal {
             self.lcd.exit_sleep()?;
+
+            // Let LCD stabilize and refresh before turning on backlight. Measured empirically.
             std::thread::sleep(Duration::from_millis(200));
             self.lcd_backlight
                 .set_duty_cycle(self.lcd_backlight_duty)
                 .unwrap();
         }
+
         self.display_mode = new_mode;
         Ok(())
     }
@@ -495,6 +572,6 @@ impl Device<'_> {
     }
 
     pub fn get_vbus_pgood(&self) -> bool {
-        self.pin_vbus_pgood.is_low()
+        self.pin_vbus_pgood.is_low() // Active low
     }
 }
