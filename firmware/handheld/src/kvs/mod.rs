@@ -4,6 +4,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use smallvec::SmallVec;
 use std::sync::{Mutex, MutexGuard, OnceLock, RwLock};
 
+use anyhow::Context;   // <-- 新增
+
 pub mod keys;
 
 static KVS: OnceLock<Mutex<Kvs>> = OnceLock::new();
@@ -19,18 +21,30 @@ pub struct Kvs {
 
 impl Kvs {
     pub fn init() -> Result<(), anyhow::Error> {
-        let nvs_main = EspNvs::new(EspNvsPartition::<NvsCustom>::take("nvs")?, NAMESPACE, true)?;
-        let nvs_ro = EspNvs::new(
-            EspNvsPartition::<NvsCustom>::take("nvs_ro")?,
-            NAMESPACE,
-            false,
-        )?;
+        log::info!("[KVS] 开始初始化 NVS 存储系统");
+
+        // 主 NVS 分区
+        log::info!("[KVS] 正在挂载 NVS 分区 'nvs'...");
+        let nvs_main_partition = EspNvsPartition::<NvsCustom>::take("nvs")
+            .context("挂载 NVS 分区 'nvs' 失败：可能未烧录分区表、分区损坏或 Flash 硬件故障")?;
+        let nvs_main = EspNvs::new(nvs_main_partition, NAMESPACE, true)
+            .context("在 NVS 分区 'nvs' 上创建命名空间 'gb' 失败：分区可能已满或损坏")?;
+        log::info!("[KVS] 主 NVS 分区 ('nvs') 初始化成功");
+
+        // 只读 NVS 分区
+        log::info!("[KVS] 正在挂载只读 NVS 分区 'nvs_ro'...");
+        let nvs_ro_partition = EspNvsPartition::<NvsCustom>::take("nvs_ro")
+            .context("挂载只读 NVS 分区 'nvs_ro' 失败：可能未烧录分区表、分区损坏或 Flash 硬件故障")?;
+        let nvs_ro = EspNvs::new(nvs_ro_partition, NAMESPACE, false)
+            .context("在只读 NVS 分区 'nvs_ro' 上创建命名空间 'gb' 失败")?;
+        log::info!("[KVS] 只读 NVS 分区 ('nvs_ro') 初始化成功");
 
         let kvs = Kvs { nvs_main, nvs_ro };
         KVS.set(Mutex::new(kvs))
             .map_err(|_| ())
             .expect("KVS already initialized");
 
+        log::info!("[KVS] NVS 存储系统初始化完成");
         Ok(())
     }
 
