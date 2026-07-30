@@ -1,0 +1,54 @@
+Done
+* Switch USB-C connector to one with 24p
+* Remove HDMI port and related circuitry
+* Power DAC IOVDD with +3V3 instead of 3V3_FPGA
+* Change pull-up resistors on link port lines to ~47k to 100k. Move the 100K pull-up to the other side of the 330R current limiter
+* Add 3V3_FPGA test point
+* Add n-FET gated by 3V3_FPGA between IRQ line and FPGA IRQ to pull it down
+* Switch to ESP32-S3-MINI
+* Separate SPI bus for display (3 wire -- so add clock and data line)
+* Connect TE signal from LCD (could replace SRAM nCS)
+* Output HDMI signals over USB-C SS signals
+* Connect a (or both?) USB-C SBU to the FPGA (with a series resistor)
+* Add a rumble "brake" circuit? with another signal to the FPGA
+* Update SRAM LCSC ID to comparable part
+* Investigate noise in headphones and speakers -- try the low-noise LDO for analog 3V3
+* Reserve space for screw holes (new positioning)
+* Allow for larger, 5mm (!) rounded radius
+* Footprint for 24p USB-C
+* Switch battery connector to SMD (or maybe dual footprint)
+* [not possible] If possible, move cartridge shape detector to the left side (when looking at rear)
+* Change 0603 resistors to 0402 where possible? Including 0 ohm shunts
+* Switch headphone jack (PJ-342?)
+* Use DSi XL button spacing and silicone pads (and keep-out area)
+* Use Kicad 8 pin 1 designators on footprints
+* Move link port to the bottom, on the rear
+* Move side buttons a bit further from L/R buttons
+* Move the home button away? Closer to the top, middle?
+* Remove unneeded hole from cartridge switch footprint
+* Support speaker with spring contact -- leave space for it
+* Move side buttons further in (with PCB cutout around)
+* Make shoulder buttons SMD 
+* Ensure all ports hang off the right amount
+* If needed, change some of the test points (e.g. I2S) to smaller surface-only
+* Investigate SMD vibration motor? Reserve space to solder it in place on board and glue it down?
+* Minimize BOM: Look at resistors and capacitors that are used just once -- see if they can be changed to something else
+* Add silkscreen rectangle to write identifying info
+* New Gamebub logo
+* Print test point silkscreen (for through hole) on rear
+
+TODO Schematic
+* Try to connect FPGA clock to different IO bank -- bank 14 or bank 15
+
+TODO Layout
+* Add silkscreen indicators around screw holes
+
+Not doing:
+* Make FPGA JTAG easier to access (e.g. when there's a case on? closer to battery?)
+* Consider swapping I/O expander to QFN 4x4mm package if needed
+* Move spi test points further from LCD plug (removed them)
+* Use Kicad 8 net-from-value for power rails
+* Add some resettable fuses (PTC): one each where 3.3V and 5V connects to VGB (and can remove the extra transistors). 
+* Add resettable fuse at rumble motor
+* Not needed: Tie SRAM nCE low, disconnect from FPGA (if needed)
+

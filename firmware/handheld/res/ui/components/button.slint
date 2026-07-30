@@ -1,0 +1,50 @@
+export component Button inherits Rectangle {
+    callback on-up() -> EventResult;
+    callback on-down() -> EventResult;
+    callback on-left() -> EventResult;
+    callback on-right() -> EventResult;
+    callback on-pressed();
+    callback on-focused();
+
+    in-out property text <=> txt.text;
+
+    horizontal-stretch: 0;
+    border-width: 1px;
+    border-color: focus.has-focus ? black : gray;
+    background: focus.has-focus ? #fff : #eee;
+    height: txt.preferred-height + 6px;
+    min-width: txt.preferred-width + 6px;
+    txt := Text {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        color: focus.has-focus ? black : gray;
+    }
+
+    focus := FocusScope {
+        focus-changed-event => {
+            if (self.has-focus) {
+                on-focused();
+            }
+        }
+        key-pressed(event) => {
+            if (event.repeat) {
+                reject
+            } else if (event.text == "a") {
+                on-pressed();
+                accept
+            } else if (event.text == Key.UpArrow) {
+                on-up()
+            } else if (event.text == Key.DownArrow) {
+                on-down()
+            } else if (event.text == Key.LeftArrow) {
+                on-left()
+            } else if (event.text == Key.RightArrow) {
+                on-right()
+            } else {
+                reject
+            }
+        }
+    }
+
+    forward-focus: focus;
+}

@@ -1,0 +1,51 @@
+import { ListViewBase } from "list_view.slint";
+import { Icons } from "../icons.slint";
+
+export enum FileIcon {
+    blank,
+    folder,
+}
+
+export struct FileListEntry {
+    name: string,
+    icon: FileIcon,
+}
+
+component FileListItem {
+    in property <FileListEntry> entry;
+    height: i-text.min-height + 2px;
+
+    pure function iconToImage(icon: FileIcon) -> image {
+        if (icon == FileIcon.folder) {
+            Icons.folder
+        } else {
+            Icons.empty
+        }
+    }
+
+    if (entry.icon != FileIcon.blank): Image {
+        x: 1px;
+        width: 8px;
+        height: 8px;
+        source: iconToImage(entry.icon);
+        colorize: #333;
+    }
+
+    i-text := Text {
+        x: 12px;
+        width: parent.width - self.x;
+        text: entry.name;
+        vertical-alignment: center;
+        horizontal-alignment: left;
+        overflow: elide;
+    }
+}
+
+export component FileListView inherits ListViewBase {
+    in property <[FileListEntry]> model;
+    num-items: model.length;
+
+    for entry in root.model: child-items := FileListItem {
+        entry: entry;
+    }
+}

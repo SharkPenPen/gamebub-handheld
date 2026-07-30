@@ -1,0 +1,54 @@
+// Vertically scrollable container, where child elements cannot be interacted with 
+export component ScrollView inherits Rectangle {
+    property <length> scroll-rate: 4px;
+    private property <bool> has-scrollbar: area.viewport-height > area.height;
+    private property <length> scrollbar-width: 2px;
+
+    forward-focus: i-focus-scope;
+    border-width: 1px;
+    border-color: black;
+
+    function scroll(y: length) {
+        area.viewport-y = clamp(
+            area.viewport-y - y,
+            area.height - area.viewport-height,
+            0,
+        );
+    }
+
+    i-focus-scope := FocusScope {
+        area := Flickable {
+            x: 2px;
+            y: 2px;
+            width: root.has-scrollbar ? scroll-bar.x - scrollbar-width - 1px : parent.width - 4px;
+            height: parent.height - 4px;
+
+            @children
+        }
+
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow) {
+                scroll(-scroll-rate);
+                return accept;
+            } else if (event.text == Key.DownArrow) {
+                scroll(scroll-rate);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    scroll-bar := Rectangle {
+        visible: has-scrollbar;
+        x: parent.width - self.width - 2px;
+        y: 2px;
+        width: scrollbar-width;
+        height: parent.height - 4px;
+        inner := Rectangle {
+            y: (-area.viewport-y / area.viewport-height) * parent.height;
+            width: 100%;
+            height: (area.height / area.viewport-height) * parent.height;
+            background: black;
+        }
+    }
+}

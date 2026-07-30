@@ -1,0 +1,57 @@
+import { Global, ScreenId, Backend } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
+import { ScrollView } from "../components/scroll_view.slint";
+
+export component AboutScreen inherits ScreenBase {
+    title: "About";
+    forward-focus: i-view;
+
+    FocusScope {
+        VerticalLayout {
+            height: 100%;
+            spacing: 2px;
+
+            i-view := ScrollView {
+                VerticalLayout {
+                    spacing: 8px;
+                    padding: 2px;
+                    alignment: start;
+
+                    Text {
+                        horizontal-alignment: center;
+                        text: "Game Bub\ngithub.com/elipsitz/gamebub";
+                    }
+
+                    Text {
+                        horizontal-alignment: center;
+                        text: "Hardware revision: \{Backend.device-revision}\nSerial: \{Backend.device-serial}";
+                    }
+
+                    Text {
+                        horizontal-alignment: center;
+                        text: "PixelMix (font) by Andrew Tyler";
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                Text {
+                    text: "B: Back";
+                    horizontal-alignment: right;
+                }
+            }
+        }
+
+        key-pressed(event) => {
+            if event.text == "Home" && !Global.home-consumed {
+                Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else if (event.text == "b") {
+                Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else {
+                reject
+            }
+        }
+    }
+}

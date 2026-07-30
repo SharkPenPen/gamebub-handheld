@@ -1,0 +1,177 @@
+CAPI=2:
+name: elipsitz:gameboy:gameboy:1.0.0
+
+filesets:
+  base:
+    depend: [ "fusesoc:utils:generators" ]
+    files: []
+
+  hdmi:
+    files:
+      - verilog/hdmi/src/audio_clock_regeneration_packet.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/audio_info_frame.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/audio_sample_packet.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/auxiliary_video_information_info_frame.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/hdmi.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/packet_assembler.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/packet_picker.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/serializer.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/source_product_description_info_frame.sv: { file_type: systemVerilogSource }
+      - verilog/hdmi/src/tmds_channel.sv: { file_type: systemVerilogSource }
+
+  handheld:
+    files:
+      - verilog/handheld/common.xdc : {file_type : xdc}
+      - verilog/handheld/top.sv : {file_type : systemVerilogSource}
+      - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
+
+  handheld_rev_1:
+    files:
+      - verilog/handheld/rev_1.xdc : {file_type : xdc}
+
+  handheld_rev_2:
+    files:
+      - verilog/handheld/rev_2.xdc : {file_type : xdc}
+
+  handheld_clk_gameboy:
+    files:
+      - verilog/handheld/clk_wiz_system_gameboy.v : {file_type : verilogSource}
+
+  handheld_clk_gba:
+    files:
+      - verilog/handheld/clk_wiz_system_gba.v : {file_type : verilogSource}
+
+  sim_base:
+    files:
+      - sim/audio.hpp : {is_include_file: true}
+      - sim/common.hpp : {is_include_file: true}
+      - sim/framebuffer.hpp : {is_include_file: true}
+      - sim/input.hpp : {is_include_file: true}
+      - sim/window.hpp : {is_include_file: true}
+      - sim/recording_writer.hpp : {is_include_file: true}
+      - sim/audio.cpp
+      - sim/framebuffer.cpp
+      - sim/main.cpp
+      - sim/window.cpp
+      - sim/recording_writer.cpp
+    file_type: cppSource
+
+  sim_gameboy:
+    files:
+      - sim/gb/cartridge.hpp : {is_include_file: true}
+      - sim/gb/simulator.hpp : {is_include_file: true}
+      - sim/gb/cartridge.cpp
+      - sim/gb/simulator.cpp
+    file_type: cppSource
+
+  sim_gba:
+    files:
+      - sim/gba/cartridge.hpp : {is_include_file: true}
+      - sim/gba/simulator.hpp : {is_include_file: true}
+      - sim/gba/cartridge.cpp
+      - sim/gba/simulator.cpp
+    file_type: cppSource
+
+parameters:
+  BOARD_REV_1:
+    datatype: bool
+    paramtype: vlogdefine
+
+  BOARD_REV_2:
+    datatype: bool
+    paramtype: vlogdefine
+
+generate:
+  gameboy:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "gameboy.Gameboy"
+      extraargs: ""
+      output:
+        files:
+          - build/generated/Gameboy.sv: { file_type: systemVerilogSource }
+
+  handheld:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "platform.handheld.HandheldTop"
+      extraargs: >
+        module_boot ? (platform.handheld.HandheldBoot)
+        module_gba ? (platform.handheld.HandheldGba)
+        module_gameboy ? (platform.handheld.HandheldGameboy)
+      output:
+        files:
+          - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
+
+  sim_gameboy:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "platform.sim.SimGameboy"
+      extraargs: ""
+      output:
+        files:
+          - build/generated/SimGameboy.sv: { file_type: systemVerilogSource }
+
+  sim_gba:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "platform.sim.SimGba"
+      extraargs: ""
+      output:
+        files:
+          - build/generated/SimGba.sv: { file_type: systemVerilogSource }
+
+targets:
+  _handheld: &handheld
+    default_tool: vivado
+    filesets:
+      - "base"
+      - "hdmi"
+      - "handheld"
+      - "module_gba ? (handheld_clk_gba)"
+      - "module_gameboy ? (handheld_clk_gameboy)"
+      - "module_boot ? (handheld_clk_gameboy)"
+    generate: [handheld]
+    toplevel: top_handheld
+    tools:
+      vivado:
+        part: xc7a100tcsg324-2
+
+  handheld_rev1:
+    <<: *handheld
+    filesets_append: [handheld_rev_1]
+    parameters: [BOARD_REV_1=true]
+
+  handheld_rev2:
+    <<: *handheld
+    filesets_append: [handheld_rev_2]
+    parameters: [BOARD_REV_2=true]
+
+  sim:
+    default_tool: verilator
+    filesets:
+      - "base"
+      - "sim_base"
+      - "module_gameboy ? (sim_gameboy)"
+      - "module_gba ? (sim_gba)"
+    generate:
+      - "module_gameboy ? (sim_gameboy)"
+      - "module_gba ? (sim_gba)"
+    toplevel:
+      - "module_gameboy ? (SimGameboy)"
+      - "module_gba ? (SimGba)"
+    tools:
+      verilator:
+        verilator_options: [
+            "-CFLAGS \"`pkg-config sdl2 --cflags`\"",
+            "-LDFLAGS \"`pkg-config sdl2 --libs`\"",
+            "-Wno-WIDTHEXPAND",
+        ]

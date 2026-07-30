@@ -1,0 +1,115 @@
+import { Global, ScreenId, Backend } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
+import { FileListView } from "../components/file_list.slint";
+
+export component RomSelectScreen inherits ScreenBase {
+    private property <bool> is-loading: false;
+    private property <bool> has-error: Backend.rom-select-error != "";
+
+    title: "Load ROM...";
+    forward-focus: list;
+
+    i-focus-scope := FocusScope {
+        key-pressed(event) => {
+            if (Backend.rom-select-is-loading) {
+                accept
+            } else if (has-error) {
+                if (event.text == "a" || event.text == "b") {
+                    Backend.rom-select-error = "";
+                }
+                accept
+            } else if event.text == "Home" && !Global.home-consumed {
+                Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else if (event.text == "b" && !event.repeat) {
+                Backend.rom-select-is-loading = Backend.rom-select-up();
+                accept
+            } else {
+                reject
+            }
+        }
+        VerticalLayout {
+            height: 100%;
+            spacing: 2px;
+
+            Text {
+                text: Backend.rom-select-path;
+            }
+
+            list := FileListView {
+                model: Backend.rom-select-list;
+                wrap: true;
+                disabled: Backend.rom-select-is-loading || has-error;
+                focus-item <=> Backend.rom-select-index;
+                init => {
+                    self.fix-focus-item();
+                }
+                on-item-selected(i) => {
+                    list.item-selected = false;
+                    Backend.rom-select-is-loading = Backend.rom-select-selected(i);
+                }
+                on-item-focused(i) => {
+                    Backend.rom-select-focused(i);
+                }
+            }
+
+            HorizontalLayout {
+                Text {
+                    text: "A: Select";
+                    horizontal-alignment: left;
+                }
+
+                Text {
+                    text: "Home: Back";
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "B: Up";
+                    horizontal-alignment: right;
+                }
+            }
+        }
+    }
+
+    if Backend.rom-select-is-loading:  Rectangle {
+        background: #FFF;
+        border-color: black;
+        border-width: 1px;
+        width: i-layout.min-width;
+        height: i-layout.min-height;
+
+        i-layout := VerticalLayout {
+            padding: 8px;
+            spacing: 4px;
+            i-text := Text {
+                horizontal-alignment: center;
+                text: "Loading...";
+            }
+
+            Rectangle {
+                background: black;
+                width: Backend.rom-select-progress * i-text.min-width;
+                height: 2px;
+            }
+        }
+    }
+
+    if has-error: Rectangle {
+        background: #FFF;
+        border-color: black;
+        border-width: 1px;
+        width: min(self.preferred-width, parent.width - 16px);
+        height: min(self.preferred-height, parent.height - 32px);
+
+        i-error-layout := VerticalLayout {
+            padding: 8px;
+            spacing: 4px;
+            Text {
+                horizontal-alignment: center;
+                text: Backend.rom-select-error;
+                overflow: elide;
+            }
+        }
+    }
+}

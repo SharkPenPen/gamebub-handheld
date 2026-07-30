@@ -1,0 +1,172 @@
+import { Global, ScreenId, Backend } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
+import { Button } from "../components/button.slint";
+
+enum ButtonId {
+    Cart,
+    Rom,
+    Settings,
+    Tools,
+    About,
+}
+
+global MainMenu {
+    in-out property <ButtonId> last-focus: Cart;
+}
+
+export component MainMenuScreen inherits ScreenBase {
+    forward-focus: i-focus-scope;
+    i-focus-scope := FocusScope {
+        focus-changed-event => {
+            if (self.has-focus) {
+                if (MainMenu.last-focus == ButtonId.Cart) {
+                    btn-cart.focus();
+                } else if (MainMenu.last-focus == ButtonId.Rom) {
+                    btn-rom.focus();
+                } else if (MainMenu.last-focus == ButtonId.Settings) {
+                    btn-settings.focus();
+                } else if (MainMenu.last-focus == ButtonId.Tools) {
+                    btn-tools.focus();
+                } else if (MainMenu.last-focus == ButtonId.About) {
+                    btn-about.focus();
+                }
+            }
+        }
+
+        VerticalLayout {
+            alignment: space-around;
+            height: 100%;
+            padding: 8px;
+            spacing: 8px;
+
+            Image {
+                source: @image-url("../../logo.png");
+                height: 32px;
+                colorize: #3A3C99;
+                image-rendering: pixelated;
+                visible: !Global.ui-transparent;
+            }
+
+            VerticalLayout {
+                spacing: 4px;
+
+                HorizontalLayout {
+                    spacing: 4px;
+
+                    btn-cart := Button {
+                        width: (parent.width - 4px) / 2;
+                        height: 32px;
+                        text: "Run Cartridge";
+                        on-right => {
+                            btn-rom.focus();
+                            accept
+                        }
+                        on-down => {
+                            if (MainMenu.last-focus == ButtonId.Tools) {
+                                btn-tools.focus();
+                            } else {
+                                btn-settings.focus();
+                            }
+                            MainMenu.last-focus = ButtonId.Cart;
+                            accept
+                        }
+                        on-pressed => {
+                            MainMenu.last-focus = ButtonId.Cart;
+                            Backend.main-menu-run-cartridge();
+                        }
+                    }
+
+                    btn-rom := Button {
+                        width: (parent.width - 4px) / 2;
+                        height: 32px;
+                        text: "Load ROM";
+                        on-left => {
+                            btn-cart.focus();
+                            accept
+                        }
+                        on-down => {
+                            if (MainMenu.last-focus == ButtonId.Tools) {
+                                btn-tools.focus();
+                            } else {
+                                btn-about.focus();
+                            }
+                            MainMenu.last-focus = ButtonId.Rom;
+                            accept
+                        }
+                        on-pressed => {
+                            MainMenu.last-focus = ButtonId.Rom;
+                            Global.set-screen(ScreenId.RomSelect);
+                            Backend.main-menu-load-rom();
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 4px;
+
+                    btn-settings := Button {
+                        text: "Settings";
+                        width: (parent.width - 8px) / 3;
+                        on-up => {
+                            btn-cart.focus();
+                            MainMenu.last-focus = ButtonId.Settings;
+                            accept
+                        }
+                        on-right => {
+                            btn-tools.focus();
+                            accept
+                        }
+                        on-pressed => {
+                            MainMenu.last-focus = ButtonId.Settings;
+                            Global.set-screen(ScreenId.Settings);
+                        }
+                    }
+
+                    btn-tools := Button {
+                        text: "Tools";
+                        width: (parent.width - 8px) / 3;
+                        on-up => {
+                            if (MainMenu.last-focus == ButtonId.Rom) {
+                                btn-rom.focus();
+                            } else {
+                                btn-cart.focus();
+                            }
+                            MainMenu.last-focus = ButtonId.Tools;
+                            accept
+                        }
+                        on-left => {
+                            btn-settings.focus();
+                            accept
+                        }
+                        on-right => {
+                            btn-about.focus();
+                            accept
+                        }
+                        on-pressed => {
+                            MainMenu.last-focus = ButtonId.Tools;
+                            Global.set-screen(ScreenId.Tools);
+                        }
+                    }
+
+                    btn-about := Button {
+                        text: "About";
+                        width: (parent.width - 8px) / 3;
+                        on-up => {
+                            btn-rom.focus();
+                            MainMenu.last-focus = ButtonId.About;
+                            accept
+                        }
+                        on-left => {
+                            btn-tools.focus();
+                            accept
+                        }
+                        on-pressed => {
+                            MainMenu.last-focus = ButtonId.About;
+                            Global.set-screen(ScreenId.About);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
