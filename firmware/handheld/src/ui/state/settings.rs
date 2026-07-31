@@ -194,7 +194,7 @@ pub fn settings_datetime_add(source: SettingDatetime, delta: SettingDatetime) ->
         dt = dt.replace_second(((dt.second() as i32) + delta.sec).rem_euclid(60) as u8)?;
 
         // 获取当月实际天数（自动考虑闰年）
-        let day_max = dt.date().days_in_month() as i32;
+        let day_max = dt.month().length(dt.year()) as i32;
         if delta.day == 0 {
             // 如果不改变天数，则将当前日期钳制到当月最大天数
             dt = dt.replace_day(source.day.min(day_max) as u8)?;
