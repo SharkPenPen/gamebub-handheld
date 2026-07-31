@@ -10,11 +10,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-# ✅ 保留原工作目录，让 Cargo 能正确读取 .cargo/config.toml（含目标平台）
-defaults:
-  run:
-    working-directory: firmware/handheld
-
 jobs:
   build:
     name: Build firmware for ESP32-S3
@@ -37,21 +32,19 @@ jobs:
           ldproxy: true
 
       - name: Build release binary
-        run: cargo build --release --features rev2
+        run: cargo build --release --features rev2 --manifest-path firmware/handheld/Cargo.toml
 
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
       - name: Generate flashable firmware image
-        # ⚠️ 关键修复：使用绝对路径引用根目录下的配置文件和分区表
         run: |
-          cargo espflash save-image \
+          cargo espflash --config espflash.toml save-image \
             --release \
             --features rev2 \
             --chip esp32s3 \
-            --config ${{ github.workspace }}/espflash.toml \
-            --partition-table ${{ github.workspace }}/partitions.csv \
-            --merge firmware.bin
+            --manifest-path firmware/handheld/Cargo.toml \
+            --merge firmware/handheld/firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
