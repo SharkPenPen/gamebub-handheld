@@ -5,14 +5,13 @@ on:
     paths-ignore:
       - "**/README.md"
   workflow_dispatch:
-  # pull_request:
 
 env:
   CARGO_TERM_COLOR: always
 
 defaults:
   run:
-    working-directory: firmware/handheld   # ✅ cargo 会自动读取 .cargo/config.toml
+    working-directory: firmware/handheld
 
 jobs:
   build:
@@ -26,7 +25,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: firmware/handheld   # 移除 "-> target" 避免缓存歧义
+          workspaces: firmware/handheld
 
       - name: Setup Rust toolchain for ESP32-S3
         uses: esp-rs/xtensa-toolchain@v1.5
@@ -42,14 +41,7 @@ jobs:
         run: cargo install cargo-espflash --locked
 
       - name: Generate flashable firmware image
-        # ✅ 参数位置符合 espflash 要求，只保留一条命令
-        run: |
-          cargo espflash --config espflash.toml save-image \
-            --release \
-            --features rev2 \
-            --chip esp32s3 \
-            --partition-table partitions.csv \
-            --merge firmware.bin
+        run: cargo espflash --config espflash.toml save-image --release --features rev2 --chip esp32s3 --merge firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
