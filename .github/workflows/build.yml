@@ -12,7 +12,7 @@ env:
 
 defaults:
   run:
-    working-directory: firmware/handheld   # ✅ 保持原样，cargo 能自动读取 .cargo/config.toml
+    working-directory: firmware/handheld   # ✅ cargo 会自动读取 .cargo/config.toml
 
 jobs:
   build:
@@ -26,7 +26,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: firmware/handheld -> target
+          workspaces: firmware/handheld   # 移除 "-> target" 避免缓存歧义
 
       - name: Setup Rust toolchain for ESP32-S3
         uses: esp-rs/xtensa-toolchain@v1.5
@@ -42,7 +42,7 @@ jobs:
         run: cargo install cargo-espflash --locked
 
       - name: Generate flashable firmware image
-        # ⚠️ 唯一改动：把 --config 和 --partition-table 放到 save-image 前面（必须这样）
+        # ✅ 参数位置符合 espflash 要求，只保留一条命令
         run: |
           cargo espflash --config espflash.toml save-image \
             --release \
