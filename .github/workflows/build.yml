@@ -37,11 +37,23 @@ jobs:
       - name: Build release binary
         run: cargo build --release --features rev2
 
-      - name: Install cargo-espflash
-        run: cargo install cargo-espflash --locked
+      - name: Install espflash
+        run: cargo install espflash --locked
 
       - name: Generate flashable firmware image
-        run: cargo espflash --config espflash.toml save-image --release --features rev2 --chip esp32s3 --merge firmware.bin
+        run: |
+          # 自动查找项目中唯一的 ELF 文件
+          ELF_FILE=$(ls target/xtensa-esp32s3-none-elf/release/*.elf | head -n 1)
+          if [ -z "$ELF_FILE" ]; then
+            echo "Error: No ELF file found in target/xtensa-esp32s3-none-elf/release/"
+            exit 1
+          fi
+          echo "Using ELF: $ELF_FILE"
+          espflash save-image \
+            --config espflash.toml \
+            --chip esp32s3 \
+            --merge firmware.bin \
+            "$ELF_FILE"
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
