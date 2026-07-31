@@ -1,5 +1,4 @@
-partition_table = "partitions.csv"
-
+[espflash]
 # Normally, we'd set flash.mode = qio to flash with QIO, and run
 # with QIO (greatly increases speed over the DIO default).
 # However, this is currently broken in espflash (3.2.0) for
@@ -8,9 +7,10 @@ partition_table = "partitions.csv"
 # and we just tell espflash to use that. We don't get the
 # flashing speed benefits of QIO, but we do get the runtime speed
 # benefits.
-# flash.mode = "qio"
-bootloader = "esp32s3-qio-bootloader-fast.bin"
+# flash_mode = "qio"
+flash_size = "8MB"
+flash_frequency = "80MHz"
 
-[flash]
-size = "8MB"
-frequency = "80MHz"
+[espflash.idf_format_args]
+partition_table = "partitions.csv"
+bootloader = "esp32s3-qio-bootloader-fast.bin"
