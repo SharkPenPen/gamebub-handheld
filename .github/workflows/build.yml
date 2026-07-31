@@ -4,8 +4,8 @@ on:
   push:
     paths-ignore:
       - "**/README.md"
-  workflow_dispatch:          # 允许手动触发
-  # pull_request:             # 如果想在 PR 时也编译，去掉这行注释
+  workflow_dispatch:
+  # pull_request:
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,12 +38,11 @@ jobs:
       - name: Build release binary
         run: cargo build --release --features rev2
 
-      # 👇 这一行必须加上
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
       - name: Generate flashable firmware image
-        run: cargo espflash save-image --release --features rev2 --chip esp32s3 --merge --output firmware.bin
+        run: cargo espflash save-image --release --features rev2 --chip esp32s3 --merge firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
