@@ -10,10 +10,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-defaults:
-  run:
-    working-directory: firmware/handheld
-
 jobs:
   build:
     name: Build firmware for ESP32-S3
@@ -36,13 +32,21 @@ jobs:
           ldproxy: true
 
       - name: Build release binary
-        run: cargo build --release --features rev2
+        run: cargo build --release --features rev2 --manifest-path firmware/handheld/Cargo.toml
 
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
       - name: Generate flashable firmware image
-        run: cargo espflash save-image --release --features rev2 --chip esp32s3 --merge firmware.bin
+        run: |
+          cargo espflash save-image \
+            --release \
+            --features rev2 \
+            --chip esp32s3 \
+            --manifest-path firmware/handheld/Cargo.toml \
+            --config espflash.toml \
+            --partition-table partitions.csv \
+            --merge firmware/handheld/firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
