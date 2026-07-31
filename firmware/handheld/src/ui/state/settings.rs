@@ -192,16 +192,19 @@ pub fn settings_datetime_add(source: SettingDatetime, delta: SettingDatetime) ->
         dt = dt.replace_hour(((dt.hour() as i32) + delta.hour).rem_euclid(24) as u8)?;
         dt = dt.replace_minute(((dt.minute() as i32) + delta.min).rem_euclid(60) as u8)?;
         dt = dt.replace_second(((dt.second() as i32) + delta.sec).rem_euclid(60) as u8)?;
-        // 使用非弃用方法获取本月最大天数
-        let day_max = dt.month().length(dt.year().is_leap()) as i32;
+
+        // 获取当月实际天数（自动考虑闰年）
+        let day_max = dt.date().days_in_month() as i32;
         if delta.day == 0 {
-            // If we aren't changing the day, clamp it to the maximum days in the month.
+            // 如果不改变天数，则将当前日期钳制到当月最大天数
             dt = dt.replace_day(source.day.min(day_max) as u8)?;
         } else {
+            // 在当月内循环增减天数
             dt = dt.replace_day((source.day + delta.day - 1).rem_euclid(day_max) as u8 + 1)?;
         }
         Ok(dt)
     }
+
     match inner(&source, delta) {
         Ok(dt) => SettingDatetime {
             year: dt.year(),
