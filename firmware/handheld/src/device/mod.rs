@@ -38,14 +38,14 @@ pub enum DisplayMode {
 pub struct Device<'a> {
     /// Status led, active-high.
     #[allow(unused)]
-    led: PinDriver<'a, AnyOutputPin, Output>,
+    pub led: PinDriver<'a, AnyOutputPin, Output>,
 
     /// FPGA power in, active-high.
-    fpga_power: PinDriver<'a, AnyOutputPin, Output>,
+    pub fpga_power: PinDriver<'a, AnyOutputPin, Output>,
 
     /// The I2C bus.
     #[allow(unused)]
-    i2c: &'a Mutex<I2cDriver<'a>>,
+    pub i2c: &'a Mutex<I2cDriver<'a>>,
 
     /// LCD backlight PWM driver.
     lcd_backlight: LedcDriver<'a>,
@@ -85,14 +85,14 @@ pub struct Device<'a> {
     /// IMU driver
     pub imu: drivers::imu::LSM6DS3TRC<MutexI2C<'a, I2cDriver<'a>>>,
 
-    io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
-    button_home: PinDriver<'a, AnyInputPin, Input>,
-    button_vol_up: PinDriver<'a, AnyInputPin, Input>,
-    button_vol_down: PinDriver<'a, AnyInputPin, Input>,
-    button_power: PinDriver<'a, AnyIOPin, InputOutput>,
-    pin_irq: PinDriver<'a, AnyInputPin, Input>,
-    pin_vbus_pgood: PinDriver<'a, AnyIOPin, Input>,
-    pin_batt_chg: PinDriver<'a, AnyInputPin, Input>,
+    pub io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
+    pub button_home: PinDriver<'a, AnyInputPin, Input>,
+    pub button_vol_up: PinDriver<'a, AnyInputPin, Input>,
+    pub button_vol_down: PinDriver<'a, AnyInputPin, Input>,
+    pub button_power: PinDriver<'a, AnyIOPin, InputOutput>,
+    pub pin_irq: PinDriver<'a, AnyInputPin, Input>,
+    pub pin_vbus_pgood: PinDriver<'a, AnyIOPin, Input>,
+    pub pin_batt_chg: PinDriver<'a, AnyInputPin, Input>,
 
     /// Sdcard,
     pub sdcard: Option<Sdcard>,
