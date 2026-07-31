@@ -10,7 +10,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-# 所有步骤默认在 firmware/handheld 目录下运行
 defaults:
   run:
     working-directory: firmware/handheld
@@ -39,12 +38,12 @@ jobs:
       - name: Build release binary
         run: cargo build --release --features rev2
 
+      # 👇 这一行必须加上
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
       - name: Generate flashable firmware image
-        run: |
-          cargo espflash save-image --release --features rev2 --chip esp32s3 --merge --output firmware.bin
+        run: cargo espflash save-image --release --features rev2 --chip esp32s3 --merge --output firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
