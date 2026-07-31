@@ -1,0 +1,50 @@
+name: Build ESP Firmware
+
+on:
+  push:
+    paths-ignore:
+      - "**/README.md"
+  workflow_dispatch:          # 允许手动触发
+  # pull_request:             # 如果想在 PR 时也编译，去掉这行注释
+
+env:
+  CARGO_TERM_COLOR: always
+
+# 所有步骤默认在 firmware/handheld 目录下运行
+defaults:
+  run:
+    working-directory: firmware/handheld
+
+jobs:
+  build:
+    name: Build firmware for ESP32-S3
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: firmware/handheld -> target
+
+      - name: Setup Rust toolchain for ESP32-S3
+        uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          buildtargets: esp32s3
+          ldproxy: true
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Generate flashable firmware image
+        run: |
+          cargo espflash save-image --release --chip esp32s3 --merge --output firmware.bin
+
+      - name: Upload firmware to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gamebub-handheld-firmware
+          path: firmware/handheld/firmware.bin
