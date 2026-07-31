@@ -37,9 +37,22 @@ jobs:
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
-      # 一步完成构建和固件生成，自动使用 espflash.toml
+      # 删除格式错误的配置文件，避免干扰
+      - name: Remove incompatible espflash.toml
+        run: rm -f espflash.toml
+
+      # 一步完成构建 + 固件生成（所有参数均为自定义值）
       - name: Build and generate firmware image
-        run: cargo espflash save-image --release --features rev2 --chip esp32s3 --merge firmware.bin
+        run: |
+          cargo espflash save-image \
+            --release \
+            --features rev2 \
+            --chip esp32s3 \
+            --flash-size 8MB \
+            --flash-freq 80MHz \
+            --bootloader esp32s3-qio-bootloader-fast.bin \
+            --partition-table partitions.csv \
+            --merge firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
