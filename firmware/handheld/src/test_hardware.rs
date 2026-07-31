@@ -1,4 +1,5 @@
 use crate::device::Device;
+use esp_idf_svc::hal::delay::BLOCK; // 新增：
 use log;
 use std::thread;
 use std::time::Duration;
@@ -17,7 +18,8 @@ pub fn run_tests(device: &mut Device) -> anyhow::Result<()> {
         } else {
             log::warn!(
                 "[PWR] VBUS not present. Check: USB connector, VBUS power path, VBUS detect (GPIO{})",
-                extract_gpio("VBUS pgood", &device.pin_vbus_pgood)
+                // 修改：直接调用 pin() 获取编号
+                device.pin_vbus_pgood.pin()
             );
             failures += 1;
         }
@@ -52,7 +54,8 @@ pub fn run_tests(device: &mut Device) -> anyhow::Result<()> {
             (0x6A, "IMU (LSM6DS3TRC)"),
         ];
         for (addr, name) in &to_test {
-            match i2c_lock.write(*addr, &[]) {
+            // 修改：加入 BLOCK 超时参数
+            match i2c_lock.write(*addr, &[], BLOCK) {
                 Ok(()) => log::info!("[I2C] 0x{:02X} ({}): OK", addr, name),
                 Err(_) => {
                     log::warn!(
@@ -78,10 +81,11 @@ pub fn run_tests(device: &mut Device) -> anyhow::Result<()> {
             log::warn!(
                 "[BTN] One or more buttons low. Check: buttons near GPIOs: \
                  Home(GPIO{}), Vol+(GPIO{}), Vol-(GPIO{}), Power(GPIO{})",
-                extract_gpio("Home", &device.button_home),
-                extract_gpio("VolUp", &device.button_vol_up),
-                extract_gpio("VolDown", &device.button_vol_down),
-                extract_gpio("Power", &device.button_power)
+                // 修改：直接调用 pin()
+                device.button_home.pin(),
+                device.button_vol_up.pin(),
+                device.button_vol_down.pin(),
+                device.button_power.pin()
             );
             failures += 1;
         }
@@ -245,7 +249,4 @@ pub fn run_tests(device: &mut Device) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 从 PinDriver 中提取 GPIO 编号
-fn extract_gpio<P: esp_idf_svc::hal::gpio::Pin>(_label: &str, pin: &P) -> i32 {
-    pin.pin() as i32
-}
+// 原 extract_gpio 函数已删除 – PinDriver 直接提供 pin() 方法，返回引脚编号
