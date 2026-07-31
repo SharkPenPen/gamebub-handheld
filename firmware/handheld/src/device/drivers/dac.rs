@@ -17,6 +17,7 @@ pub enum Error {
 }
 
 #[derive(Copy, Clone)]
+#[derive(Debug)]
 pub struct InterruptStatus {
     /// Short circuit detected at HPL / left class-D driver
     pub left_short_circuit: bool,
