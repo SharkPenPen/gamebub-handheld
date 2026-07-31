@@ -1,16 +1,13 @@
 [espflash]
-# Normally, we'd set flash.mode = qio to flash with QIO, and run
-# with QIO (greatly increases speed over the DIO default).
-# However, this is currently broken in espflash (3.2.0) for
-# the esp32-s3 (https://github.com/esp-rs/espflash/issues/657).
-# Instead, we've pre-built a QIO-capable bootloader,
-# and we just tell espflash to use that. We don't get the
-# flashing speed benefits of QIO, but we do get the runtime speed
-# benefits.
+# 注释：原来的 flash_mode 被注释掉，因为 esp32s3 在 espflash 3.2.0 下有 bug
 # flash_mode = "qio"
 flash_size = "8MB"
 flash_frequency = "80MHz"
 
+# ⚠️ 这是关键：必须在 [espflash] 段内指定自定义分区表
+partition_table = "partitions.csv"
+
+# 下面的 [espflash.idf_format_args] 对 espflash 无效，可以保留（无害）或删除
 [espflash.idf_format_args]
 partition_table = "partitions.csv"
 bootloader = "esp32s3-qio-bootloader-fast.bin"
