@@ -34,13 +34,12 @@ jobs:
           buildtargets: esp32s3
           ldproxy: true
 
-      # 注意：不再需要单独的 cargo build 步骤
-
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
+      # 一步完成构建和固件生成，自动使用 espflash.toml
       - name: Build and generate firmware image
-        run: cargo espflash save-image --config espflash.toml --release --features rev2 --chip esp32s3 --merge firmware.bin
+        run: cargo espflash save-image --release --features rev2 --chip esp32s3 --merge firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
