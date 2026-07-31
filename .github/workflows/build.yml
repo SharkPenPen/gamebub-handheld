@@ -37,7 +37,7 @@ jobs:
           ldproxy: true
 
       - name: Build release binary
-        run: cargo build --release
+        run: cargo build --release --features rev2
 
       - name: Generate flashable firmware image
         run: |
