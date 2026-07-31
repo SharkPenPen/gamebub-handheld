@@ -45,7 +45,7 @@ pub fn run_tests(device: &mut Device) -> anyhow::Result<()> {
 
     // ── I2C 总线扫描 ──
     {
-        let i2c_lock = device.i2c.lock().unwrap();
+        let mut i2c_lock = device.i2c.lock().unwrap();
         let to_test = [
             (0x18, "DAC (TLV320DAC3101)"),
             (0x20, "IO Expander (TCA9535)"),
