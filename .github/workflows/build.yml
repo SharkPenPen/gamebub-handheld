@@ -10,6 +10,10 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+defaults:
+  run:
+    working-directory: firmware/handheld   # ✅ 保持原样，cargo 能自动读取 .cargo/config.toml
+
 jobs:
   build:
     name: Build firmware for ESP32-S3
@@ -32,19 +36,20 @@ jobs:
           ldproxy: true
 
       - name: Build release binary
-        run: cargo build --release --features rev2 --manifest-path firmware/handheld/Cargo.toml
+        run: cargo build --release --features rev2
 
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
       - name: Generate flashable firmware image
+        # ⚠️ 唯一改动：把 --config 和 --partition-table 放到 save-image 前面（必须这样）
         run: |
           cargo espflash --config espflash.toml save-image \
             --release \
             --features rev2 \
             --chip esp32s3 \
-            --manifest-path firmware/handheld/Cargo.toml \
-            --merge firmware/handheld/firmware.bin
+            --partition-table partitions.csv \
+            --merge firmware.bin
 
       - name: Upload firmware to artifacts
         uses: actions/upload-artifact@v4
