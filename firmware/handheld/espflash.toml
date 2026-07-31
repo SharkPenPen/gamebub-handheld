@@ -1,5 +1,7 @@
 [espflash]
 flash_size = "8MB"
 flash_frequency = "80MHz"
+
+[idf_format_args]
+bootloader = "esp32s3-qio-bootloader-fast.bin"
 partition_table = "partitions.csv"
-bootloader = "esp32s3-qio-bootloader-fast.bin"   # 移到这里
