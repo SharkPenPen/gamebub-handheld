@@ -37,10 +37,7 @@ jobs:
       - name: Install cargo-espflash
         run: cargo install cargo-espflash --locked
 
-      # 移除格式错误的 espflash.toml，避免干扰
-      - name: Remove incompatible espflash configuration
-        run: rm -f espflash.toml
-
+      # 一步完成构建和固件生成，自动使用 espflash.toml
       - name: Build and generate firmware image
         run: cargo espflash save-image --release --features rev2 --chip esp32s3 --merge firmware.bin
 
