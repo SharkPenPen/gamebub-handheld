@@ -8,20 +8,19 @@ rust-version = "1.82"
 
 [[bin]]
 name = "handheld"
-harness = false   # do not use the built in cargo test harness -> resolve rust-analyzer errors
+harness = false
 
 [profile.release]
 opt-level = "s"
 
 [profile.dev]
-debug = true    # Symbols are nice and they don't increase the size on Flash
+debug = true
 opt-level = "z"
 
 [features]
 default = ["std", "embassy", "esp-idf-svc/native"]
-rev1 = []  # Build for handheld revision 1
-rev2 = []  # Build for handheld revision 2
-
+rev1 = []
+rev2 = []
 pio = ["esp-idf-svc/pio"]
 std = [
     "alloc",
@@ -69,3 +68,12 @@ slint-build = "~1.9.1"
 [[package.metadata.esp-idf-sys.extra_components]]
 remote_component = { name = "espressif/esp_tinyusb", version = "^1.4.4" }
 bindings_header = "bindings_esp_tinyusb.h"
+
+# --- ESP Flash Build Configuration ---
+# 如需自定义 bootloader / 分区表，请使用以下格式：
+# [package.metadata.espflash.idf_format_args]
+# bootloader = "bootloader.bin"
+# partition_table = "partitions.csv"
+#
+# 其他 espflash 选项（如 flash_freq）仍然放在 [package.metadata.espflash] 下。
+# 旧的直接写在 [package.metadata.espflash] 下的 bootloader / partition_table 在新版会出错。
