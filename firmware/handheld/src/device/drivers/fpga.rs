@@ -137,12 +137,12 @@ where
     // ─── 以下为自检新增的公开方法 ───
 
     /// 读取 INIT_B 引脚电平（高 → FPGA 配置就绪）
-    pub fn get_init_b(&self) -> Result<bool, Error> {
+    pub fn get_init_b(&mut self) -> Result<bool, Error> {
         self.pin_init_b.is_high().map_err(|_| Error::PinError)
     }
 
     /// 读取 DONE 引脚电平（高 → 配置成功）
-    pub fn get_done(&self) -> Result<bool, Error> {
+    pub fn get_done(&mut self) -> Result<bool, Error> {
         self.pin_done.is_high().map_err(|_| Error::PinError)
     }
 
