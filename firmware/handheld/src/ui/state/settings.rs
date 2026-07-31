@@ -129,7 +129,6 @@ impl Model for SettingsModel {
     }
 
     fn as_any(&self) -> &dyn core::any::Any {
-        // a typical implementation just return `self`
         self
     }
 }
@@ -150,11 +149,17 @@ impl SettingsModel {
         match index {
             0 => kvs::keys::DARK_MODE.set(&value.bool_value),
             1 => {
-                let dt = convert_settings_datetime(&value.datetime_value).unwrap();
-                let dt = dt.replace_second(0).unwrap();
-                let dt = dt.assume_utc();
-                Device::lock().set_datetime(dt);
-                self.datetime.set(dt);
+                match convert_settings_datetime(&value.datetime_value) {
+                    Ok(dt) => {
+                        let dt = dt.assume_utc();
+                        Device::lock().set_datetime(dt);
+                        self.datetime.set(dt);
+                    }
+                    Err(e) => {
+                        log::warn!("Invalid datetime from UI: {}", e);
+                        // 不更新 RTC，但后续会发出 row_changed 让 UI 刷新为旧值
+                    }
+                }
             }
             2 => kvs::keys::RUMBLE_LEVEL.set(&value.int_value),
             3 => kvs::keys::GB_IS_DMG.set(&value.bool_value),
@@ -163,7 +168,7 @@ impl SettingsModel {
             6 => kvs::keys::GBA_ENABLE_GBP.set(&value.bool_value),
             _ => {
                 log::info!("Unknown setting changed: {} -> {:?}", index, value);
-                return;
+                return; // 未知索引，不通知
             }
         }
         self.notify.row_changed(index);
@@ -187,7 +192,8 @@ pub fn settings_datetime_add(source: SettingDatetime, delta: SettingDatetime) ->
         dt = dt.replace_hour(((dt.hour() as i32) + delta.hour).rem_euclid(24) as u8)?;
         dt = dt.replace_minute(((dt.minute() as i32) + delta.min).rem_euclid(60) as u8)?;
         dt = dt.replace_second(((dt.second() as i32) + delta.sec).rem_euclid(60) as u8)?;
-        let day_max = time::util::days_in_year_month(dt.year(), dt.month()) as i32;
+        // 使用非弃用方法获取本月最大天数
+        let day_max = dt.month().length(dt.year().is_leap()) as i32;
         if delta.day == 0 {
             // If we aren't changing the day, clamp it to the maximum days in the month.
             dt = dt.replace_day(source.day.min(day_max) as u8)?;
